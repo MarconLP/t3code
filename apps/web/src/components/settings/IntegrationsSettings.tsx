@@ -753,17 +753,15 @@ function parseSettingsList(text: string): ReadonlyArray<string> {
     .filter((line) => line.length > 0);
 }
 
-function PullRequestTimelineListSetting({
+function PullRequestNoiseListSetting({
   setting,
   searchId,
   label,
   description,
   placeholder,
 }: {
-  readonly setting: "pullRequestTimelineHiddenComments" | "pullRequestTimelineLatestOnlyBots";
-  readonly searchId:
-    | "pull-request-timeline-hidden-comments"
-    | "pull-request-timeline-latest-only-bots";
+  readonly setting: "pullRequestHiddenComments" | "pullRequestLatestOnlyBots";
+  readonly searchId: "pull-request-hidden-comments" | "pull-request-latest-only-bots";
   readonly label: string;
   readonly description: string;
   readonly placeholder: string;
@@ -1594,18 +1592,18 @@ export function IntegrationsSettingsPanel() {
         )}
         <PullRequestLinksOpenInAppSetting />
         <PullRequestTimelineHideBotsSetting />
-        <PullRequestTimelineListSetting
-          setting="pullRequestTimelineHiddenComments"
-          searchId="pull-request-timeline-hidden-comments"
+        <PullRequestNoiseListSetting
+          setting="pullRequestHiddenComments"
+          searchId="pull-request-hidden-comments"
           label="Hide comments that say exactly"
-          description="Comments whose whole text is one of these lines stay out of pull request timelines, yours included. Case and spacing are ignored."
+          description="Comments whose whole text is one of these lines stay out of PR comments and the timeline, yours included. Case and spacing are ignored."
           placeholder="@codex review"
         />
-        <PullRequestTimelineListSetting
-          setting="pullRequestTimelineLatestOnlyBots"
-          searchId="pull-request-timeline-latest-only-bots"
+        <PullRequestNoiseListSetting
+          setting="pullRequestLatestOnlyBots"
+          searchId="pull-request-latest-only-bots"
           label="Show only the latest from"
-          description="Bot logins, one per line. Only the newest comment or review from each is shown in pull request timelines."
+          description="Bot logins, one per line. Only the newest comment or review from each is shown in PR comments and the timeline."
           placeholder="stamphog"
         />
       </SettingsSection>

@@ -758,16 +758,16 @@ export const SETTINGS_SEARCH_ITEMS = [
     searchTerms: ["pr timeline bot noise quiet github actions codex review automated comments"],
   },
   {
-    id: "pull-request-timeline-hidden-comments",
+    id: "pull-request-hidden-comments",
     title: "Hide comments that say exactly",
     to: "/settings/integrations",
-    searchTerms: ["pr timeline codex review summon phrase mute comment filter"],
+    searchTerms: ["pr comments timeline codex review summon phrase mute comment filter"],
   },
   {
-    id: "pull-request-timeline-latest-only-bots",
+    id: "pull-request-latest-only-bots",
     title: "Show only the latest from",
     to: "/settings/integrations",
-    searchTerms: ["pr timeline bot newest latest stamphog review repeated comments"],
+    searchTerms: ["pr comments timeline bot newest latest stamphog review repeated comments"],
   },
   {
     id: "browser-auto-show-floating-preview",

@@ -22,6 +22,7 @@ import { useRef, useState, type ReactNode } from "react";
 
 import { pullRequestEnvironment } from "~/state/pullRequests";
 import { useLocalStorage } from "~/hooks/useLocalStorage";
+import { useClientSettings } from "~/hooks/useSettings";
 import { cn } from "~/lib/utils";
 import { useOpenLink } from "~/browser/useOpenLink";
 import { formatRelativeTimeLabel } from "~/timestampFormat";
@@ -53,6 +54,7 @@ import { PullRequestLabelPicker } from "./PullRequestLabelPicker";
 import { PullRequestReviewerPicker } from "./PullRequestReviewerPicker";
 import { PullRequestActivityUnavailableState } from "./PullRequestActivityUnavailableState";
 import {
+  hiddenPullRequestCommentIds,
   latestPullRequestReviewOutcomes,
   orderPullRequestComments,
   pullRequestFindingKey,
@@ -389,6 +391,8 @@ export function PullRequestSummaryTab({
     DEFAULT_COMMENT_FILTER,
     CommentFilterSchema,
   );
+  const hiddenComments = useClientSettings((settings) => settings.pullRequestHiddenComments);
+  const latestOnlyBots = useClientSettings((settings) => settings.pullRequestLatestOnlyBots);
   const threadByCommentId = new Map(
     detail.reviewThreads.flatMap((thread) =>
       thread.comments.map((comment) => [comment.id, thread] as const),
@@ -398,11 +402,18 @@ export function PullRequestSummaryTab({
   const isFinished = (comment: PullRequestComment) =>
     threadByCommentId.get(comment.id)?.isResolved === true ||
     pullRequestReviewOutcome(comment.reviewState) === "dismissed";
-  const isBot = (comment: PullRequestComment) =>
-    comment.author?.isBot === true || comment.author?.login.endsWith("[bot]") === true;
+  // With bot comments unchecked, the Timeline's noise rules decide, so verdicts and threads a
+  // person took part in stay while summons and repeated bot updates go.
+  const noiseIds = commentFilter.bots
+    ? null
+    : hiddenPullRequestCommentIds(detail.comments, detail.reviewThreads, {
+        hiddenComments,
+        latestOnlyBots,
+      });
   const filteredComments = detail.comments.filter(
     (comment) =>
-      (commentFilter.bots || !isBot(comment)) && (commentFilter.resolved || !isFinished(comment)),
+      (noiseIds === null || !noiseIds.has(comment.id)) &&
+      (commentFilter.resolved || !isFinished(comment)),
   );
   const filteredOutCount = detail.comments.length - filteredComments.length;
   const recentComments = filteredComments.slice(

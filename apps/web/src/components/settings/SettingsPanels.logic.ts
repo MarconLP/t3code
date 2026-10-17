@@ -117,8 +117,8 @@ export type BrowserDefaultSettings = Pick<
   | "browserAutoShowFloatingPreview"
   | "pullRequestLinksOpenInApp"
   | "pullRequestTimelineHideBots"
-  | "pullRequestTimelineHiddenComments"
-  | "pullRequestTimelineLatestOnlyBots"
+  | "pullRequestHiddenComments"
+  | "pullRequestLatestOnlyBots"
 >;
 
 function isSameStringList(left: ReadonlyArray<string>, right: ReadonlyArray<string>): boolean {
@@ -171,14 +171,14 @@ export function getChangedBrowserSettingLabels(settings: BrowserDefaultSettings)
       ? ["Hide bots in pull request timelines"]
       : []),
     ...(isSameStringList(
-      settings.pullRequestTimelineHiddenComments,
-      DEFAULT_UNIFIED_SETTINGS.pullRequestTimelineHiddenComments,
+      settings.pullRequestHiddenComments,
+      DEFAULT_UNIFIED_SETTINGS.pullRequestHiddenComments,
     )
       ? []
       : ["Hide comments that say exactly"]),
     ...(isSameStringList(
-      settings.pullRequestTimelineLatestOnlyBots,
-      DEFAULT_UNIFIED_SETTINGS.pullRequestTimelineLatestOnlyBots,
+      settings.pullRequestLatestOnlyBots,
+      DEFAULT_UNIFIED_SETTINGS.pullRequestLatestOnlyBots,
     )
       ? []
       : ["Show only the latest from"]),

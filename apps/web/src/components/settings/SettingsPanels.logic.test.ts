@@ -242,8 +242,8 @@ describe("getChangedBrowserSettingLabels", () => {
         browserAutoShowFloatingPreview: !DEFAULT_UNIFIED_SETTINGS.browserAutoShowFloatingPreview,
         pullRequestLinksOpenInApp: false,
         pullRequestTimelineHideBots: false,
-        pullRequestTimelineHiddenComments: [],
-        pullRequestTimelineLatestOnlyBots: ["stamphog"],
+        pullRequestHiddenComments: [],
+        pullRequestLatestOnlyBots: ["stamphog"],
       }),
     ).toEqual([
       "Browser viewport",

@@ -784,12 +784,12 @@ describe("ClientSettings pull request timeline", () => {
   it("hides bots and the @codex review summon by default", () => {
     expect(decodeClientSettings({})).toMatchObject({
       pullRequestTimelineHideBots: true,
-      pullRequestTimelineHiddenComments: ["@codex review"],
-      pullRequestTimelineLatestOnlyBots: [],
+      pullRequestHiddenComments: ["@codex review"],
+      pullRequestLatestOnlyBots: [],
     });
     expect(
-      decodeClientSettingsPatch({ pullRequestTimelineLatestOnlyBots: ["stamphog"] })
-        .pullRequestTimelineLatestOnlyBots,
+      decodeClientSettingsPatch({ pullRequestLatestOnlyBots: ["stamphog"] })
+        .pullRequestLatestOnlyBots,
     ).toEqual(["stamphog"]);
   });
 });

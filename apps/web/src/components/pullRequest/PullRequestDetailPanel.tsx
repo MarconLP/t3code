@@ -641,12 +641,8 @@ export function PullRequestDetailPanel({
   const [tab, setTab] = useState<DetailTab>("summary");
   const [timelineOrder, setTimelineOrder] = useState<"newest" | "oldest">("newest");
   const timelineHideBots = useClientSettings((settings) => settings.pullRequestTimelineHideBots);
-  const timelineHiddenComments = useClientSettings(
-    (settings) => settings.pullRequestTimelineHiddenComments,
-  );
-  const timelineLatestOnlyBots = useClientSettings(
-    (settings) => settings.pullRequestTimelineLatestOnlyBots,
-  );
+  const hiddenComments = useClientSettings((settings) => settings.pullRequestHiddenComments);
+  const latestOnlyBots = useClientSettings((settings) => settings.pullRequestLatestOnlyBots);
   const updateClientSettings = useUpdateClientSettings();
   const [codeCommitScope, setCodeCommitScope] = useState<{
     readonly pullRequestKey: string;
@@ -1539,8 +1535,8 @@ export function PullRequestDetailPanel({
   const timeline = detail
     ? filterPullRequestTimeline(buildPullRequestTimeline(detail), detail.reviewThreads, {
         hideBots: timelineHideBots,
-        hiddenComments: timelineHiddenComments,
-        latestOnlyBots: timelineLatestOnlyBots,
+        hiddenComments: hiddenComments,
+        latestOnlyBots: latestOnlyBots,
       })
     : null;
   const approvalCount =

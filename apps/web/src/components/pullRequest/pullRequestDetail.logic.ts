@@ -516,10 +516,23 @@ export function isPullRequestBot(actor: PullRequestActor | null): boolean {
   return actor?.isBot === true || actor?.login.endsWith("[bot]") === true;
 }
 
-export interface PullRequestTimelineFilterRules {
-  readonly hideBots: boolean;
+/** The rules that hide bot noise, shared by the Timeline tab and the Summary comments list. */
+export interface PullRequestNoiseRules {
   readonly hiddenComments: ReadonlyArray<string>;
   readonly latestOnlyBots: ReadonlyArray<string>;
+}
+
+export interface PullRequestTimelineFilterRules extends PullRequestNoiseRules {
+  readonly hideBots: boolean;
+}
+
+/** The fields of a comment or review that the noise rules read, whichever surface lists it. */
+export interface PullRequestActivityItem {
+  readonly id: string;
+  readonly actor: PullRequestActor | null;
+  readonly body: string | null;
+  readonly at: string;
+  readonly reviewState: string | null;
 }
 
 function normalizedCommentText(text: string): string {
@@ -539,13 +552,16 @@ function normalizedLogin(login: string): string {
     .replace(/\[bot\]$/u, "");
 }
 
-export function filterPullRequestTimeline(
-  events: ReadonlyArray<PullRequestTimelineEvent>,
+/**
+ * Returns the ids of the items the noise rules hide: bot comments and reviews (verdicts excepted),
+ * comments whose whole text is a hidden phrase, and all but the newest item of a latest-only login.
+ * A comment in a review thread a person took part in is kept unless it is a hidden phrase.
+ */
+export function hiddenPullRequestActivityIds(
+  items: ReadonlyArray<PullRequestActivityItem>,
   reviewThreads: ReadonlyArray<PullRequestReviewThread>,
-  rules: PullRequestTimelineFilterRules,
-): { readonly events: ReadonlyArray<PullRequestTimelineEvent>; readonly hiddenCount: number } {
-  if (!rules.hideBots) return { events, hiddenCount: 0 };
-
+  rules: PullRequestNoiseRules,
+): ReadonlySet<string> {
   const hiddenComments = new Set(
     rules.hiddenComments.map(normalizedCommentText).filter((phrase) => phrase.length > 0),
   );
@@ -566,27 +582,61 @@ export function filterPullRequestTimeline(
   );
   // Hosts do not return activity in order, so the newest is decided by time, not position.
   const newestByLogin = new Map<string, { readonly id: string; readonly at: number }>();
-  for (const event of events) {
-    if ((event.kind !== "comment" && event.kind !== "review") || event.actor === null) continue;
-    const login = normalizedLogin(event.actor.login);
+  for (const item of items) {
+    if (item.actor === null) continue;
+    const login = normalizedLogin(item.actor.login);
     if (!latestOnly.has(login)) continue;
-    const at = instant(event.at);
+    const at = instant(item.at);
     const current = newestByLogin.get(login);
     if (current === undefined || (Number.isNaN(current.at) ? !Number.isNaN(at) : at > current.at)) {
-      newestByLogin.set(login, { id: event.id, at });
+      newestByLogin.set(login, { id: item.id, at });
     }
   }
 
-  const kept = events.filter((event) => {
-    if (event.kind !== "comment" && event.kind !== "review") return true;
-    if (event.body !== null && hiddenComments.has(normalizedCommentText(event.body))) return false;
-    if (conversationCommentIds.has(event.id)) return true;
-    const login = event.actor === null ? null : normalizedLogin(event.actor.login);
-    if (login !== null && latestOnly.has(login)) return newestByLogin.get(login)?.id === event.id;
-    if (!isPullRequestBot(event.actor)) return true;
-    const outcome = pullRequestReviewOutcome(event.reviewState);
-    return outcome === "approved" || outcome === "changes-requested";
-  });
+  const isHidden = (item: PullRequestActivityItem): boolean => {
+    if (item.body !== null && hiddenComments.has(normalizedCommentText(item.body))) return true;
+    if (conversationCommentIds.has(item.id)) return false;
+    const login = item.actor === null ? null : normalizedLogin(item.actor.login);
+    if (login !== null && latestOnly.has(login)) return newestByLogin.get(login)?.id !== item.id;
+    if (!isPullRequestBot(item.actor)) return false;
+    const outcome = pullRequestReviewOutcome(item.reviewState);
+    return outcome !== "approved" && outcome !== "changes-requested";
+  };
+  return new Set(items.filter(isHidden).map((item) => item.id));
+}
+
+export function hiddenPullRequestCommentIds(
+  comments: ReadonlyArray<PullRequestComment>,
+  reviewThreads: ReadonlyArray<PullRequestReviewThread>,
+  rules: PullRequestNoiseRules,
+): ReadonlySet<string> {
+  return hiddenPullRequestActivityIds(
+    comments.map((comment) => ({
+      id: comment.id,
+      actor: comment.author,
+      body: comment.body,
+      at: comment.createdAt,
+      reviewState: comment.reviewState,
+    })),
+    reviewThreads,
+    rules,
+  );
+}
+
+export function filterPullRequestTimeline(
+  events: ReadonlyArray<PullRequestTimelineEvent>,
+  reviewThreads: ReadonlyArray<PullRequestReviewThread>,
+  rules: PullRequestTimelineFilterRules,
+): { readonly events: ReadonlyArray<PullRequestTimelineEvent>; readonly hiddenCount: number } {
+  if (!rules.hideBots) return { events, hiddenCount: 0 };
+  const hidden = hiddenPullRequestActivityIds(
+    events.filter((event) => event.kind === "comment" || event.kind === "review"),
+    reviewThreads,
+    rules,
+  );
+  const kept = events.filter(
+    (event) => (event.kind !== "comment" && event.kind !== "review") || !hidden.has(event.id),
+  );
   return { events: kept, hiddenCount: events.length - kept.length };
 }
 

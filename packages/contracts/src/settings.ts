@@ -404,10 +404,10 @@ export const ClientSettingsSchema = Schema.Struct({
   pullRequestTimelineHideBots: Schema.Boolean.pipe(
     Schema.withDecodingDefault(Effect.succeed(true)),
   ),
-  pullRequestTimelineHiddenComments: Schema.Array(Schema.String).pipe(
+  pullRequestHiddenComments: Schema.Array(Schema.String).pipe(
     Schema.withDecodingDefault(Effect.succeed(["@codex review"])),
   ),
-  pullRequestTimelineLatestOnlyBots: Schema.Array(Schema.String).pipe(
+  pullRequestLatestOnlyBots: Schema.Array(Schema.String).pipe(
     Schema.withDecodingDefault(Effect.succeed([])),
   ),
 
@@ -1574,8 +1574,8 @@ export const ClientSettingsPatch = Schema.Struct({
   ),
   pullRequestLinksOpenInApp: Schema.optionalKey(Schema.Boolean),
   pullRequestTimelineHideBots: Schema.optionalKey(Schema.Boolean),
-  pullRequestTimelineHiddenComments: Schema.optionalKey(Schema.Array(Schema.String)),
-  pullRequestTimelineLatestOnlyBots: Schema.optionalKey(Schema.Array(Schema.String)),
+  pullRequestHiddenComments: Schema.optionalKey(Schema.Array(Schema.String)),
+  pullRequestLatestOnlyBots: Schema.optionalKey(Schema.Array(Schema.String)),
   planModeEnabled: Schema.optionalKey(Schema.Boolean),
   contextWindowMeterEnabled: Schema.optionalKey(Schema.Boolean),
   composerCollapseOnScroll: Schema.optionalKey(Schema.Boolean),

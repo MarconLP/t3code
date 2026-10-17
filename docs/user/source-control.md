@@ -153,9 +153,10 @@ Open **Pull requests** to review changes and comments, request reviewers, check 
 or merge. You can edit review titles and descriptions and your own comments where the host allows it.
 GitLab calls these merge requests.
 
-On web and desktop, the **Timeline** tab hides bot comments by default but keeps bot approvals,
-change requests, and threads a person replied to. Toggle **Bots hidden** to show them, and adjust
-the filters in Settings → Integrations.
+On web and desktop, the **Timeline** tab and the Summary **Comments** list hide bot comments by
+default but keep bot approvals, change requests, and threads a person replied to. Toggle **Bots
+hidden** or the Comments filter's **Bot comments** to show them, and adjust the rules in
+Settings → Integrations.
 
 On mobile, **Pull requests** lists reviews across your connected environments. Open a review
 to read its description, activity, commits, and changed files. Line comments stay as drafts

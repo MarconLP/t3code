@@ -61,6 +61,7 @@ import {
   buildPullRequestTimeline,
   editPullRequestThreadComment,
   filterPullRequestTimeline,
+  hiddenPullRequestCommentIds,
   writePullRequestDetailSnapshot,
 } from "./pullRequestDetail.logic";
 import type { ReviewCommentContext } from "~/reviewCommentContext";
@@ -895,6 +896,86 @@ describe("pull request timeline bot filter", () => {
         latestOnlyBots: ["github-actions"],
       }),
     ).toEqual({ events, hiddenCount: 0 });
+  });
+
+  describe("on the comments list", () => {
+    function hiddenIds(
+      comments: ReadonlyArray<PullRequestComment>,
+      reviewThreads: ReadonlyArray<PullRequestReviewThread> = [],
+      latestOnlyBots: ReadonlyArray<string> = [],
+    ) {
+      return [
+        ...hiddenPullRequestCommentIds(comments, reviewThreads, { ...rules, latestOnlyBots }),
+      ].toSorted();
+    }
+
+    it("hides bot comments and keeps a person's", () => {
+      expect(
+        hiddenIds([
+          comment("flagged", "chatgpt-codex-connector", "Codex Review: Didn't find issues", {
+            author: { login: "chatgpt-codex-connector", name: null, avatarUrl: null, isBot: true },
+          }),
+          comment("suffixed", "chatgpt-codex-connector[bot]", "Reviewed commit abc"),
+          comment("person", "bilal", "looks good"),
+        ]),
+      ).toEqual(["flagged", "suffixed"]);
+    });
+
+    it("keeps a bot's approval and change request", () => {
+      expect(
+        hiddenIds([
+          review("approved", "stamphog[bot]", "APPROVED", "2026-07-03T00:00:00Z"),
+          review("changes", "greptile[bot]", "CHANGES_REQUESTED", "2026-07-04T00:00:00Z"),
+          review("commented", "greptile[bot]", "COMMENTED", "2026-07-05T00:00:00Z"),
+        ]),
+      ).toEqual(["commented"]);
+    });
+
+    it("keeps a bot finding in a thread a person replied to", () => {
+      const inline = { kind: "review-comment" as const, path: "apps/web/src/page.tsx" };
+      expect(
+        hiddenIds(
+          [
+            comment("finding", "chatgpt-codex-connector[bot]", "P1: fix this", inline),
+            comment("reply", "bilal", "fixed", inline),
+            comment("lone-finding", "chatgpt-codex-connector[bot]", "P2: and this", inline),
+          ],
+          [
+            botThread([
+              { id: "finding", login: "chatgpt-codex-connector[bot]" },
+              { id: "reply", login: "bilal" },
+            ]),
+            botThread([{ id: "lone-finding", login: "chatgpt-codex-connector[bot]" }]),
+          ],
+        ),
+      ).toEqual(["lone-finding"]);
+    });
+
+    it("hides a person's @codex review summons", () => {
+      expect(
+        hiddenIds([
+          comment("summon", "MarconLP", "@codex review"),
+          comment("request", "MarconLP", "@codex review the cache change"),
+        ]),
+      ).toEqual(["summon"]);
+    });
+
+    it("keeps only the newest comment or review from a latest-only bot", () => {
+      expect(
+        hiddenIds(
+          [
+            review("newest", "stamphog[bot]", "APPROVED", "2026-07-06T00:00:00Z"),
+            review("old-approval", "stamphog[bot]", "APPROVED", "2026-07-04T00:00:00Z"),
+            comment("old-comment", "stamphog[bot]", "Waiting on checks", {
+              createdAt: "2026-07-05T00:00:00Z",
+            }),
+            comment("person", "bilal", "thanks"),
+          ],
+          [],
+          ["@StampHog"],
+        ),
+      ).toEqual(["old-approval", "old-comment"]);
+    });
   });
 });
 
