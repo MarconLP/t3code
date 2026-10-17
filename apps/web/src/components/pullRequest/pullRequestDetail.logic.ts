@@ -484,6 +484,21 @@ export interface PullRequestTimelineEvent {
   readonly path: string | null;
   readonly reviewState: string | null;
   readonly reactions: ReadonlyArray<PullRequestReaction>;
+  /** Set on the root comment of an inline review thread; its replies ride along inside it. */
+  readonly thread?: PullRequestTimelineThread;
+}
+
+export interface PullRequestTimelineThread {
+  readonly path: string;
+  readonly line: number | null;
+  readonly isResolved: boolean;
+  readonly isOutdated: boolean;
+  /** Oldest first, whichever way the timeline itself runs. */
+  readonly replies: ReadonlyArray<PullRequestTimelineEvent>;
+  /** Replies the host has but did not send; 0 when it only says more exist, or none do. */
+  readonly moreReplies: number;
+  readonly hasMoreReplies: boolean;
+  readonly url: string | null;
 }
 
 export type PullRequestTimelineRow =
@@ -495,8 +510,11 @@ export function groupPullRequestTimelineConversations(
 ): ReadonlyArray<PullRequestTimelineRow> {
   const rows: PullRequestTimelineRow[] = [];
   for (const event of events) {
+    // A review thread is always a row of its own: folded into "N comments" it would hide the
+    // finding and the replies that answer it behind one collapsed count.
     if (
       (event.kind === "comment" || event.kind === "review") &&
+      event.thread === undefined &&
       pullRequestReviewOutcome(event.reviewState) === null
     ) {
       const last = rows.at(-1);
@@ -526,11 +544,88 @@ export function visibleBody(body: string): string | null {
  * Merged wins over closed: GitHub sets both timestamps on a merge, and reporting "closed" for a
  * merged pull request would misstate what happened.
  */
+function commentTimelineEvent(comment: PullRequestComment): PullRequestTimelineEvent {
+  return {
+    id: comment.id,
+    at: comment.createdAt,
+    kind: comment.kind === "review" ? "review" : "comment",
+    title: comment.kind === "review" ? "reviewed" : "commented",
+    body: visibleBody(comment.body),
+    markdown: true,
+    url: comment.url,
+    actor: comment.author,
+    commitAuthors: [],
+    additions: null,
+    deletions: null,
+    path: comment.path,
+    reviewState: comment.reviewState,
+    reactions: comment.reactions ?? [],
+  };
+}
+
+function byCreatedAt(
+  left: { readonly createdAt: string; readonly id: string },
+  right: { readonly createdAt: string; readonly id: string },
+): number {
+  return left.createdAt.localeCompare(right.createdAt) || left.id.localeCompare(right.id);
+}
+
+/**
+ * Inline review comments arrive as a flat list, so a finding and the reply that answers it days
+ * later would sit far apart. Each thread the conversation shares at least one comment with
+ * becomes one event at its root comment's time, carrying the rest as replies; every event keeps
+ * the comment's own id. A comment no thread claims stays a plain comment, as before.
+ */
+function conversationTimelineEvents(
+  comments: ReadonlyArray<PullRequestComment>,
+  reviewThreads: ReadonlyArray<PullRequestReviewThread>,
+): ReadonlyArray<PullRequestTimelineEvent> {
+  const byId = new Map(comments.map((comment) => [comment.id, comment] as const));
+  const threaded = new Set<string>();
+  const threadEvents: PullRequestTimelineEvent[] = [];
+  for (const thread of reviewThreads) {
+    const ordered = thread.comments.toSorted(byCreatedAt);
+    const [root, ...rest] = ordered;
+    if (root === undefined || !ordered.some((comment) => byId.has(comment.id))) continue;
+    // The conversation's copy wins: it is the one the rest of the page edits and reacts to.
+    const toEvent = (comment: (typeof ordered)[number]) =>
+      commentTimelineEvent(
+        byId.get(comment.id) ?? {
+          ...comment,
+          kind: "review-comment",
+          path: thread.path,
+          reviewState: null,
+        },
+      );
+    for (const comment of ordered) threaded.add(comment.id);
+    const loaded = ordered.length;
+    const moreReplies = Math.max(0, (thread.commentCount ?? loaded) - loaded);
+    threadEvents.push({
+      ...toEvent(root),
+      thread: {
+        path: thread.path,
+        line: thread.line,
+        isResolved: thread.isResolved,
+        isOutdated: thread.isOutdated,
+        replies: rest.map(toEvent),
+        moreReplies,
+        hasMoreReplies: moreReplies > 0 || thread.nextCommentsCursor !== undefined,
+        url: root.url ?? ordered.find((comment) => comment.url !== null)?.url ?? null,
+      },
+    });
+  }
+  return [
+    ...comments.filter((comment) => !threaded.has(comment.id)).map(commentTimelineEvent),
+    ...threadEvents,
+  ];
+}
+
 export function buildPullRequestTimeline(
   detail: Pick<
     PullRequestDetailView,
     "createdAt" | "author" | "commits" | "comments" | "mergedAt" | "closedAt"
-  >,
+  > &
+    Partial<Pick<PullRequestDetailView, "reviewThreads">>,
 ): ReadonlyArray<PullRequestTimelineEvent> {
   return [
     {
@@ -565,22 +660,7 @@ export function buildPullRequestTimeline(
       reviewState: null,
       reactions: [],
     })),
-    ...detail.comments.map((comment) => ({
-      id: comment.id,
-      at: comment.createdAt,
-      kind: comment.kind === "review" ? ("review" as const) : ("comment" as const),
-      title: comment.kind === "review" ? "reviewed" : "commented",
-      body: visibleBody(comment.body),
-      markdown: true,
-      url: comment.url,
-      actor: comment.author,
-      commitAuthors: [],
-      additions: null,
-      deletions: null,
-      path: comment.path,
-      reviewState: comment.reviewState,
-      reactions: comment.reactions ?? [],
-    })),
+    ...conversationTimelineEvents(detail.comments, detail.reviewThreads ?? []),
     ...(detail.mergedAt
       ? [
           {
