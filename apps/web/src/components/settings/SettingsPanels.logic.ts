@@ -116,7 +116,14 @@ export type BrowserDefaultSettings = Pick<
   | "browserLinkTarget"
   | "browserAutoShowFloatingPreview"
   | "pullRequestLinksOpenInApp"
+  | "pullRequestTimelineHideBots"
+  | "pullRequestTimelineHiddenComments"
+  | "pullRequestTimelineLatestOnlyBots"
 >;
+
+function isSameStringList(left: ReadonlyArray<string>, right: ReadonlyArray<string>): boolean {
+  return left.length === right.length && left.every((value, index) => value === right[index]);
+}
 
 function isSamePreviewViewport(
   left: PreviewViewportSetting,
@@ -159,6 +166,22 @@ export function getChangedBrowserSettingLabels(settings: BrowserDefaultSettings)
     ...(settings.pullRequestLinksOpenInApp !== DEFAULT_UNIFIED_SETTINGS.pullRequestLinksOpenInApp
       ? ["Open pull requests in T3 Code"]
       : []),
+    ...(settings.pullRequestTimelineHideBots !==
+    DEFAULT_UNIFIED_SETTINGS.pullRequestTimelineHideBots
+      ? ["Hide bots in pull request timelines"]
+      : []),
+    ...(isSameStringList(
+      settings.pullRequestTimelineHiddenComments,
+      DEFAULT_UNIFIED_SETTINGS.pullRequestTimelineHiddenComments,
+    )
+      ? []
+      : ["Hide comments that say exactly"]),
+    ...(isSameStringList(
+      settings.pullRequestTimelineLatestOnlyBots,
+      DEFAULT_UNIFIED_SETTINGS.pullRequestTimelineLatestOnlyBots,
+    )
+      ? []
+      : ["Show only the latest from"]),
   ];
 }
 

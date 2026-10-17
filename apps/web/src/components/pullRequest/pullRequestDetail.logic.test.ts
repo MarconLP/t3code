@@ -60,6 +60,7 @@ import {
   resolvePullRequestMergeMethod,
   buildPullRequestTimeline,
   editPullRequestThreadComment,
+  filterPullRequestTimeline,
   writePullRequestDetailSnapshot,
 } from "./pullRequestDetail.logic";
 import type { ReviewCommentContext } from "~/reviewCommentContext";
@@ -718,6 +719,182 @@ describe("pull request timeline", () => {
       ["event", "1baf7bdcafe"],
       ["event", "created"],
     ]);
+  });
+});
+
+describe("pull request timeline bot filter", () => {
+  const rules = { hideBots: true, hiddenComments: ["@codex review"], latestOnlyBots: [] };
+
+  function comment(
+    id: string,
+    login: string,
+    body: string,
+    overrides: Partial<PullRequestComment> = {},
+  ): PullRequestComment {
+    return {
+      id,
+      kind: "issue-comment",
+      author: { login, name: null, avatarUrl: null },
+      body,
+      createdAt: "2026-07-03T00:00:00Z",
+      url: null,
+      path: null,
+      reviewState: null,
+      ...overrides,
+    };
+  }
+
+  function review(id: string, login: string, reviewState: string, createdAt: string) {
+    return comment(id, login, "", { kind: "review", reviewState, createdAt });
+  }
+
+  function botThread(
+    comments: ReadonlyArray<{ readonly id: string; readonly login: string }>,
+  ): PullRequestReviewThread {
+    return {
+      id: `thread:${comments[0]?.id ?? "empty"}`,
+      path: "apps/web/src/page.tsx",
+      line: 12,
+      side: "right",
+      isResolved: false,
+      isOutdated: false,
+      comments: comments.map(({ id, login }) => ({
+        id,
+        author: { login, name: null, avatarUrl: null },
+        body: "finding",
+        createdAt: "2026-07-03T00:00:00Z",
+        url: null,
+      })),
+    };
+  }
+
+  function visibleIds(
+    comments: ReadonlyArray<PullRequestComment>,
+    reviewThreads: ReadonlyArray<PullRequestReviewThread> = [],
+    filterRules: Parameters<typeof filterPullRequestTimeline>[2] = rules,
+  ) {
+    const events = buildPullRequestTimeline({ ...TIMELINE_SOURCE, comments });
+    const filtered = filterPullRequestTimeline(events, reviewThreads, filterRules);
+    return {
+      ids: filtered.events.map((event) => event.id),
+      hiddenCount: filtered.hiddenCount,
+    };
+  }
+
+  it("hides bot comments, by flag or by a [bot] login", () => {
+    const result = visibleIds([
+      comment("flagged", "vercel", "Preview ready", {
+        author: { login: "vercel", name: null, avatarUrl: null, isBot: true },
+      }),
+      comment("suffixed", "github-actions[bot]", "Coverage report"),
+      comment("person", "bilal", "looks good"),
+    ]);
+    expect(result.ids).not.toContain("flagged");
+    expect(result.ids).not.toContain("suffixed");
+    expect(result.ids).toContain("person");
+    expect(result.hiddenCount).toBe(2);
+  });
+
+  it("keeps a bot's approval and change request but not its plain review", () => {
+    const result = visibleIds([
+      review("approved", "stamphog[bot]", "APPROVED", "2026-07-03T00:00:00Z"),
+      review("changes", "greptile[bot]", "CHANGES_REQUESTED", "2026-07-04T00:00:00Z"),
+      review("commented", "greptile[bot]", "COMMENTED", "2026-07-05T00:00:00Z"),
+    ]);
+    expect(result.ids).toEqual(expect.arrayContaining(["approved", "changes"]));
+    expect(result.ids).not.toContain("commented");
+  });
+
+  it("keeps a bot's inline finding once a person replied in its thread", () => {
+    const threads = [
+      botThread([
+        { id: "finding", login: "chatgpt-codex-connector[bot]" },
+        { id: "reply", login: "bilal" },
+      ]),
+      botThread([
+        { id: "lone-finding", login: "chatgpt-codex-connector[bot]" },
+        { id: "bot-follow-up", login: "chatgpt-codex-connector[bot]" },
+      ]),
+    ];
+    const inline = { kind: "review-comment" as const, path: "apps/web/src/page.tsx" };
+    const result = visibleIds(
+      [
+        comment("finding", "chatgpt-codex-connector[bot]", "P1: fix this", inline),
+        comment("reply", "bilal", "fixed", inline),
+        comment("lone-finding", "chatgpt-codex-connector[bot]", "P2: and this", inline),
+        comment("bot-follow-up", "chatgpt-codex-connector[bot]", "still there", inline),
+      ],
+      threads,
+    );
+    expect(result.ids).toEqual(expect.arrayContaining(["finding", "reply"]));
+    expect(result.ids).not.toContain("lone-finding");
+    expect(result.ids).not.toContain("bot-follow-up");
+  });
+
+  it("hides a person's comment only when its whole text is a hidden phrase", () => {
+    const result = visibleIds([
+      comment("summon", "bilal", "  @Codex   REVIEW \n"),
+      comment("marked", "bilal", "<!-- tracking -->@codex review"),
+      comment("request", "bilal", "@codex review please fix X"),
+    ]);
+    expect(result.ids).not.toContain("summon");
+    expect(result.ids).not.toContain("marked");
+    expect(result.ids).toContain("request");
+  });
+
+  it("keeps only the newest event from a latest-only bot, whatever order it arrives in", () => {
+    const result = visibleIds(
+      [
+        review("newest", "stamphog", "COMMENTED", "2026-07-06T00:00:00Z"),
+        review("old-approval", "stamphog[bot]", "APPROVED", "2026-07-04T00:00:00Z"),
+        comment("old-comment", "StampHog[bot]", "Waiting on checks", {
+          createdAt: "2026-07-05T00:00:00Z",
+        }),
+        comment("person", "bilal", "thanks"),
+      ],
+      [],
+      { ...rules, latestOnlyBots: ["stamphog[bot]"] },
+    );
+    expect(result.ids).toContain("newest");
+    expect(result.ids).toContain("person");
+    expect(result.ids).not.toContain("old-approval");
+    expect(result.ids).not.toContain("old-comment");
+    expect(result.hiddenCount).toBe(2);
+  });
+
+  it("never hides commits or lifecycle events", () => {
+    const events = buildPullRequestTimeline({
+      ...TIMELINE_SOURCE,
+      author: { login: "renovate[bot]", name: null, avatarUrl: null, isBot: true },
+      commits: [
+        {
+          oid: "b0bcafe",
+          messageHeadline: "@codex review",
+          committedDate: "2026-07-02T00:00:00Z",
+          authors: [{ login: "dependabot[bot]", name: null, avatarUrl: null }],
+        },
+      ],
+      comments: [],
+      mergedAt: "2026-07-07T00:00:00Z",
+    });
+    expect(filterPullRequestTimeline(events, [], rules)).toEqual({ events, hiddenCount: 0 });
+  });
+
+  it("leaves the timeline untouched while bots are shown", () => {
+    const events = buildPullRequestTimeline({
+      ...TIMELINE_SOURCE,
+      comments: [
+        comment("bot", "github-actions[bot]", "Coverage report"),
+        comment("summon", "bilal", "@codex review"),
+      ],
+    });
+    expect(
+      filterPullRequestTimeline(events, [], {
+        ...rules,
+        hideBots: false,
+        latestOnlyBots: ["github-actions"],
+      }),
+    ).toEqual({ events, hiddenCount: 0 });
   });
 });
 

@@ -774,6 +774,9 @@ export function useSettingsRestore(onRestored?: () => void) {
       browserLinkTarget: DEFAULT_UNIFIED_SETTINGS.browserLinkTarget,
       browserAutoShowFloatingPreview: DEFAULT_UNIFIED_SETTINGS.browserAutoShowFloatingPreview,
       pullRequestLinksOpenInApp: DEFAULT_UNIFIED_SETTINGS.pullRequestLinksOpenInApp,
+      pullRequestTimelineHideBots: DEFAULT_UNIFIED_SETTINGS.pullRequestTimelineHideBots,
+      pullRequestTimelineHiddenComments: DEFAULT_UNIFIED_SETTINGS.pullRequestTimelineHiddenComments,
+      pullRequestTimelineLatestOnlyBots: DEFAULT_UNIFIED_SETTINGS.pullRequestTimelineLatestOnlyBots,
       enableAgentBrowserAccess: DEFAULT_UNIFIED_SETTINGS.enableAgentBrowserAccess,
     });
     onRestored?.();

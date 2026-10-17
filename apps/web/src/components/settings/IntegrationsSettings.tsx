@@ -31,6 +31,7 @@ import {
   type PreviewAppearancePreference,
   type PreviewViewportSetting,
 } from "@t3tools/contracts";
+import { DEFAULT_UNIFIED_SETTINGS } from "@t3tools/contracts/settings";
 import { PREVIEW_VIEWPORT_PRESETS } from "@t3tools/shared/previewViewport";
 import { MoreVertical, Plus as PlusIcon } from "lucide-react";
 import { useRef, useState } from "react";
@@ -93,6 +94,7 @@ import {
   SelectValue,
 } from "../ui/select";
 import { Switch } from "../ui/switch";
+import { Textarea } from "../ui/textarea";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import {
   getClientSettings,
@@ -707,6 +709,99 @@ function PullRequestLinksOpenInAppSetting() {
         />
       }
     />
+  );
+}
+
+function PullRequestTimelineHideBotsSetting() {
+  const hideBots = useClientSettings((settings) => settings.pullRequestTimelineHideBots);
+  const updateSettings = useUpdatePrimarySettings();
+
+  return (
+    <SettingsRow
+      {...searchableSetting("pull-request-timeline-hide-bots")}
+      description="Bot comments and reviews stay out of a pull request's timeline. Approvals, change requests and threads a person replied to still show."
+      resetAction={
+        hideBots === DEFAULT_UNIFIED_SETTINGS.pullRequestTimelineHideBots ? null : (
+          <SettingResetButton
+            label="hide bots in pull request timelines"
+            onClick={() =>
+              updateSettings({
+                pullRequestTimelineHideBots: DEFAULT_UNIFIED_SETTINGS.pullRequestTimelineHideBots,
+              })
+            }
+          />
+        )
+      }
+      control={
+        <Switch
+          checked={hideBots}
+          onCheckedChange={(checked) =>
+            updateSettings({ pullRequestTimelineHideBots: Boolean(checked) })
+          }
+          aria-label="Hide bots in pull request timelines"
+        />
+      }
+    />
+  );
+}
+
+/** One entry per line; blank lines and surrounding spaces are dropped. */
+function parseSettingsList(text: string): ReadonlyArray<string> {
+  return text
+    .split("\n")
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0);
+}
+
+function PullRequestTimelineListSetting({
+  setting,
+  searchId,
+  label,
+  description,
+  placeholder,
+}: {
+  readonly setting: "pullRequestTimelineHiddenComments" | "pullRequestTimelineLatestOnlyBots";
+  readonly searchId:
+    | "pull-request-timeline-hidden-comments"
+    | "pull-request-timeline-latest-only-bots";
+  readonly label: string;
+  readonly description: string;
+  readonly placeholder: string;
+}) {
+  const values = useClientSettings((settings) => settings[setting]);
+  const updateSettings = useUpdatePrimarySettings();
+  const defaults = DEFAULT_UNIFIED_SETTINGS[setting];
+  const isDefault =
+    values.length === defaults.length && values.every((value, index) => value === defaults[index]);
+  const text = values.join("\n");
+
+  return (
+    <SettingsRow
+      {...searchableSetting(searchId)}
+      description={description}
+      resetAction={
+        isDefault ? null : (
+          <SettingResetButton
+            label={label.toLowerCase()}
+            onClick={() => updateSettings({ [setting]: defaults })}
+          />
+        )
+      }
+    >
+      <div className="mt-3 max-w-2xl pb-3.5">
+        <Textarea
+          key={text}
+          aria-label={label}
+          rows={3}
+          defaultValue={text}
+          placeholder={placeholder}
+          onBlur={(event) => {
+            const next = parseSettingsList(event.target.value);
+            if (next.join("\n") !== text) updateSettings({ [setting]: next });
+          }}
+        />
+      </div>
+    </SettingsRow>
   );
 }
 
@@ -1498,6 +1593,21 @@ export function IntegrationsSettingsPanel() {
           previewDefaults
         )}
         <PullRequestLinksOpenInAppSetting />
+        <PullRequestTimelineHideBotsSetting />
+        <PullRequestTimelineListSetting
+          setting="pullRequestTimelineHiddenComments"
+          searchId="pull-request-timeline-hidden-comments"
+          label="Hide comments that say exactly"
+          description="Comments whose whole text is one of these lines stay out of pull request timelines, yours included. Case and spacing are ignored."
+          placeholder="@codex review"
+        />
+        <PullRequestTimelineListSetting
+          setting="pullRequestTimelineLatestOnlyBots"
+          searchId="pull-request-timeline-latest-only-bots"
+          label="Show only the latest from"
+          description="Bot logins, one per line. Only the newest comment or review from each is shown in pull request timelines."
+          placeholder="stamphog"
+        />
       </SettingsSection>
       <DeviceIntegrationSettings />
     </SettingsPageContainer>

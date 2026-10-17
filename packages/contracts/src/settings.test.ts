@@ -780,6 +780,20 @@ describe("ClientSettings pull request merge methods", () => {
   });
 });
 
+describe("ClientSettings pull request timeline", () => {
+  it("hides bots and the @codex review summon by default", () => {
+    expect(decodeClientSettings({})).toMatchObject({
+      pullRequestTimelineHideBots: true,
+      pullRequestTimelineHiddenComments: ["@codex review"],
+      pullRequestTimelineLatestOnlyBots: [],
+    });
+    expect(
+      decodeClientSettingsPatch({ pullRequestTimelineLatestOnlyBots: ["stamphog"] })
+        .pullRequestTimelineLatestOnlyBots,
+    ).toEqual(["stamphog"]);
+  });
+});
+
 describe("ServerSettings.providerInstances (slice-2 invariant)", () => {
   it("defaults to an empty record so legacy configs without the key still decode", () => {
     expect(DEFAULT_SERVER_SETTINGS.providerInstances).toEqual({});

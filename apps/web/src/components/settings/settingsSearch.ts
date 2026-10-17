@@ -752,6 +752,24 @@ export const SETTINGS_SEARCH_ITEMS = [
     searchTerms: ["pr links github browser external click default pull request view panel"],
   },
   {
+    id: "pull-request-timeline-hide-bots",
+    title: "Hide bots in pull request timelines",
+    to: "/settings/integrations",
+    searchTerms: ["pr timeline bot noise quiet github actions codex review automated comments"],
+  },
+  {
+    id: "pull-request-timeline-hidden-comments",
+    title: "Hide comments that say exactly",
+    to: "/settings/integrations",
+    searchTerms: ["pr timeline codex review summon phrase mute comment filter"],
+  },
+  {
+    id: "pull-request-timeline-latest-only-bots",
+    title: "Show only the latest from",
+    to: "/settings/integrations",
+    searchTerms: ["pr timeline bot newest latest stamphog review repeated comments"],
+  },
+  {
     id: "browser-auto-show-floating-preview",
     title: "Auto-show floating preview",
     to: "/settings/integrations",

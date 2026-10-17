@@ -241,6 +241,9 @@ describe("getChangedBrowserSettingLabels", () => {
         browserLinkTarget: "app",
         browserAutoShowFloatingPreview: !DEFAULT_UNIFIED_SETTINGS.browserAutoShowFloatingPreview,
         pullRequestLinksOpenInApp: false,
+        pullRequestTimelineHideBots: false,
+        pullRequestTimelineHiddenComments: [],
+        pullRequestTimelineLatestOnlyBots: ["stamphog"],
       }),
     ).toEqual([
       "Browser viewport",
@@ -252,6 +255,9 @@ describe("getChangedBrowserSettingLabels", () => {
       "Open links in",
       "Floating preview",
       "Open pull requests in T3 Code",
+      "Hide bots in pull request timelines",
+      "Hide comments that say exactly",
+      "Show only the latest from",
     ]);
   });
 });

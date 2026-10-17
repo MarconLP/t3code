@@ -512,6 +512,84 @@ export function groupPullRequestTimelineConversations(
   return rows;
 }
 
+export function isPullRequestBot(actor: PullRequestActor | null): boolean {
+  return actor?.isBot === true || actor?.login.endsWith("[bot]") === true;
+}
+
+export interface PullRequestTimelineFilterRules {
+  readonly hideBots: boolean;
+  readonly hiddenComments: ReadonlyArray<string>;
+  readonly latestOnlyBots: ReadonlyArray<string>;
+}
+
+function normalizedCommentText(text: string): string {
+  return text
+    .replace(/<!--[\s\S]*?-->/gu, "")
+    .replace(/\s+/gu, " ")
+    .trim()
+    .toLowerCase();
+}
+
+/** GitHub's GraphQL reports app logins without the `[bot]` that REST and settings carry. */
+function normalizedLogin(login: string): string {
+  return login
+    .trim()
+    .toLowerCase()
+    .replace(/^@/u, "")
+    .replace(/\[bot\]$/u, "");
+}
+
+export function filterPullRequestTimeline(
+  events: ReadonlyArray<PullRequestTimelineEvent>,
+  reviewThreads: ReadonlyArray<PullRequestReviewThread>,
+  rules: PullRequestTimelineFilterRules,
+): { readonly events: ReadonlyArray<PullRequestTimelineEvent>; readonly hiddenCount: number } {
+  if (!rules.hideBots) return { events, hiddenCount: 0 };
+
+  const hiddenComments = new Set(
+    rules.hiddenComments.map(normalizedCommentText).filter((phrase) => phrase.length > 0),
+  );
+  const latestOnly = new Set(
+    rules.latestOnlyBots.map(normalizedLogin).filter((login) => login.length > 0),
+  );
+  // A thread whose remaining comments are not loaded yet may hold a person's reply, so it counts
+  // as a conversation rather than letting a bot finding vanish from under that reply.
+  const conversationCommentIds = new Set(
+    reviewThreads
+      .filter(
+        (thread) =>
+          (thread.commentCount ?? 0) > thread.comments.length ||
+          thread.nextCommentsCursor !== undefined ||
+          thread.comments.some((comment) => !isPullRequestBot(comment.author)),
+      )
+      .flatMap((thread) => thread.comments.map((comment) => comment.id)),
+  );
+  // Hosts do not return activity in order, so the newest is decided by time, not position.
+  const newestByLogin = new Map<string, { readonly id: string; readonly at: number }>();
+  for (const event of events) {
+    if ((event.kind !== "comment" && event.kind !== "review") || event.actor === null) continue;
+    const login = normalizedLogin(event.actor.login);
+    if (!latestOnly.has(login)) continue;
+    const at = instant(event.at);
+    const current = newestByLogin.get(login);
+    if (current === undefined || (Number.isNaN(current.at) ? !Number.isNaN(at) : at > current.at)) {
+      newestByLogin.set(login, { id: event.id, at });
+    }
+  }
+
+  const kept = events.filter((event) => {
+    if (event.kind !== "comment" && event.kind !== "review") return true;
+    if (event.body !== null && hiddenComments.has(normalizedCommentText(event.body))) return false;
+    if (conversationCommentIds.has(event.id)) return true;
+    const login = event.actor === null ? null : normalizedLogin(event.actor.login);
+    if (login !== null && latestOnly.has(login)) return newestByLogin.get(login)?.id === event.id;
+    if (!isPullRequestBot(event.actor)) return true;
+    const outcome = pullRequestReviewOutcome(event.reviewState);
+    return outcome === "approved" || outcome === "changes-requested";
+  });
+  return { events: kept, hiddenCount: events.length - kept.length };
+}
+
 /**
  * A body that is nothing but a marker therefore renders as an empty block, so it is treated as
  * no body at all. The stripped text decides that and nothing else: the body itself is passed on
