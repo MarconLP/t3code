@@ -712,33 +712,52 @@ function PullRequestLinksOpenInAppSetting() {
   );
 }
 
-function PullRequestTimelineHideBotsSetting() {
-  const hideBots = useClientSettings((settings) => settings.pullRequestTimelineHideBots);
+type PullRequestNoiseSwitch =
+  | "pullRequestTimelineHideBots"
+  | "pullRequestCollapseBotComments"
+  | "pullRequestKeepBotApprovals"
+  | "pullRequestKeepBotChangeRequests"
+  | "pullRequestKeepBotReviewComments"
+  | "pullRequestBotNameHeuristics";
+
+function PullRequestNoiseSwitchSetting({
+  setting,
+  searchId,
+  label,
+  description,
+}: {
+  readonly setting: PullRequestNoiseSwitch;
+  readonly searchId:
+    | "pull-request-timeline-hide-bots"
+    | "pull-request-collapse-bot-comments"
+    | "pull-request-keep-bot-approvals"
+    | "pull-request-keep-bot-change-requests"
+    | "pull-request-keep-bot-review-comments"
+    | "pull-request-bot-name-heuristics";
+  readonly label: string;
+  readonly description: string;
+}) {
+  const checked = useClientSettings((settings) => settings[setting]);
   const updateSettings = useUpdatePrimarySettings();
+  const defaultValue = DEFAULT_UNIFIED_SETTINGS[setting];
 
   return (
     <SettingsRow
-      {...searchableSetting("pull-request-timeline-hide-bots")}
-      description="Bot comments and reviews stay out of a pull request's timeline. Approvals, change requests and threads a person replied to still show."
+      {...searchableSetting(searchId)}
+      description={description}
       resetAction={
-        hideBots === DEFAULT_UNIFIED_SETTINGS.pullRequestTimelineHideBots ? null : (
+        checked === defaultValue ? null : (
           <SettingResetButton
-            label="hide bots in pull request timelines"
-            onClick={() =>
-              updateSettings({
-                pullRequestTimelineHideBots: DEFAULT_UNIFIED_SETTINGS.pullRequestTimelineHideBots,
-              })
-            }
+            label={label.toLowerCase()}
+            onClick={() => updateSettings({ [setting]: defaultValue })}
           />
         )
       }
       control={
         <Switch
-          checked={hideBots}
-          onCheckedChange={(checked) =>
-            updateSettings({ pullRequestTimelineHideBots: Boolean(checked) })
-          }
-          aria-label="Hide bots in pull request timelines"
+          checked={checked}
+          onCheckedChange={(next) => updateSettings({ [setting]: Boolean(next) })}
+          aria-label={label}
         />
       }
     />
@@ -760,8 +779,16 @@ function PullRequestNoiseListSetting({
   description,
   placeholder,
 }: {
-  readonly setting: "pullRequestHiddenComments" | "pullRequestLatestOnlyBots";
-  readonly searchId: "pull-request-hidden-comments" | "pull-request-latest-only-bots";
+  readonly setting:
+    | "pullRequestHiddenComments"
+    | "pullRequestLatestOnlyBots"
+    | "pullRequestExtraBots"
+    | "pullRequestHumanAccounts";
+  readonly searchId:
+    | "pull-request-hidden-comments"
+    | "pull-request-latest-only-bots"
+    | "pull-request-extra-bots"
+    | "pull-request-human-accounts";
   readonly label: string;
   readonly description: string;
   readonly placeholder: string;
@@ -1591,20 +1618,71 @@ export function IntegrationsSettingsPanel() {
           previewDefaults
         )}
         <PullRequestLinksOpenInAppSetting />
-        <PullRequestTimelineHideBotsSetting />
+      </SettingsSection>
+      <SettingsSection id="pull-request-comments" title="Pull request comments">
+        <PullRequestNoiseSwitchSetting
+          setting="pullRequestTimelineHideBots"
+          searchId="pull-request-timeline-hide-bots"
+          label="Hide bots in pull request timelines"
+          description="Where the Timeline's bots toggle starts. In Summary, the Comments filter's Bot comments box does the same. The rules below decide what hiding takes."
+        />
+        <PullRequestNoiseSwitchSetting
+          setting="pullRequestCollapseBotComments"
+          searchId="pull-request-collapse-bot-comments"
+          label="Collapse bot comments"
+          description="A hidden bot comment shrinks to one line you can click in the Comments list. Turn off and it goes altogether."
+        />
+        <PullRequestNoiseSwitchSetting
+          setting="pullRequestKeepBotApprovals"
+          searchId="pull-request-keep-bot-approvals"
+          label="Keep bot approvals"
+          description="A bot's approval stays in full while bots are hidden."
+        />
+        <PullRequestNoiseSwitchSetting
+          setting="pullRequestKeepBotChangeRequests"
+          searchId="pull-request-keep-bot-change-requests"
+          label="Keep bot change requests"
+          description="So does a bot's change request."
+        />
+        <PullRequestNoiseSwitchSetting
+          setting="pullRequestKeepBotReviewComments"
+          searchId="pull-request-keep-bot-review-comments"
+          label="Keep bot reviews that only commented"
+          description="A bot's comment-only or dismissed review is hidden with its other comments unless this is on."
+        />
         <PullRequestNoiseListSetting
           setting="pullRequestHiddenComments"
           searchId="pull-request-hidden-comments"
           label="Hide comments that say exactly"
-          description="Comments whose whole text is one of these lines stay out of PR comments and the timeline, yours included. Case and spacing are ignored."
+          description="A lone comment whose whole text is one of these lines goes while bots are hidden, whoever wrote it. One that says anything more stays. Case and spacing are ignored."
           placeholder="@codex review"
         />
         <PullRequestNoiseListSetting
           setting="pullRequestLatestOnlyBots"
           searchId="pull-request-latest-only-bots"
           label="Show only the latest from"
-          description="Bot logins, one per line. Only the newest comment or review from each is shown in PR comments and the timeline."
+          description="Bot logins, one per line. Their earlier comments and reviews go altogether while bots are hidden, leaving the latest in full."
           placeholder="stamphog"
+        />
+        <PullRequestNoiseListSetting
+          setting="pullRequestExtraBots"
+          searchId="pull-request-extra-bots"
+          label="Extra bot accounts"
+          description="Logins, one per line, that post through a token and look human."
+          placeholder="release-tool"
+        />
+        <PullRequestNoiseListSetting
+          setting="pullRequestHumanAccounts"
+          searchId="pull-request-human-accounts"
+          label="Always treat as human"
+          description="Logins, one per line. Overrides every bot signal."
+          placeholder="octocat-bot"
+        />
+        <PullRequestNoiseSwitchSetting
+          setting="pullRequestBotNameHeuristics"
+          searchId="pull-request-bot-name-heuristics"
+          label="Bot name heuristics"
+          description="Treat logins like *-bot, *-ci and *-app as bots."
         />
       </SettingsSection>
       <DeviceIntegrationSettings />

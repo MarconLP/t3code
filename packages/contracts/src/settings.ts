@@ -410,6 +410,27 @@ export const ClientSettingsSchema = Schema.Struct({
   pullRequestLatestOnlyBots: Schema.Array(Schema.String).pipe(
     Schema.withDecodingDefault(Effect.succeed([])),
   ),
+  pullRequestKeepBotApprovals: Schema.Boolean.pipe(
+    Schema.withDecodingDefault(Effect.succeed(true)),
+  ),
+  pullRequestKeepBotChangeRequests: Schema.Boolean.pipe(
+    Schema.withDecodingDefault(Effect.succeed(true)),
+  ),
+  pullRequestKeepBotReviewComments: Schema.Boolean.pipe(
+    Schema.withDecodingDefault(Effect.succeed(false)),
+  ),
+  pullRequestCollapseBotComments: Schema.Boolean.pipe(
+    Schema.withDecodingDefault(Effect.succeed(true)),
+  ),
+  pullRequestExtraBots: Schema.Array(Schema.String).pipe(
+    Schema.withDecodingDefault(Effect.succeed([])),
+  ),
+  pullRequestHumanAccounts: Schema.Array(Schema.String).pipe(
+    Schema.withDecodingDefault(Effect.succeed([])),
+  ),
+  pullRequestBotNameHeuristics: Schema.Boolean.pipe(
+    Schema.withDecodingDefault(Effect.succeed(true)),
+  ),
 
   planModeEnabled: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(false))),
   contextWindowMeterEnabled: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(false))),
@@ -1576,6 +1597,13 @@ export const ClientSettingsPatch = Schema.Struct({
   pullRequestTimelineHideBots: Schema.optionalKey(Schema.Boolean),
   pullRequestHiddenComments: Schema.optionalKey(Schema.Array(Schema.String)),
   pullRequestLatestOnlyBots: Schema.optionalKey(Schema.Array(Schema.String)),
+  pullRequestKeepBotApprovals: Schema.optionalKey(Schema.Boolean),
+  pullRequestKeepBotChangeRequests: Schema.optionalKey(Schema.Boolean),
+  pullRequestKeepBotReviewComments: Schema.optionalKey(Schema.Boolean),
+  pullRequestCollapseBotComments: Schema.optionalKey(Schema.Boolean),
+  pullRequestExtraBots: Schema.optionalKey(Schema.Array(Schema.String)),
+  pullRequestHumanAccounts: Schema.optionalKey(Schema.Array(Schema.String)),
+  pullRequestBotNameHeuristics: Schema.optionalKey(Schema.Boolean),
   planModeEnabled: Schema.optionalKey(Schema.Boolean),
   contextWindowMeterEnabled: Schema.optionalKey(Schema.Boolean),
   composerCollapseOnScroll: Schema.optionalKey(Schema.Boolean),

@@ -244,6 +244,13 @@ describe("getChangedBrowserSettingLabels", () => {
         pullRequestTimelineHideBots: false,
         pullRequestHiddenComments: [],
         pullRequestLatestOnlyBots: ["stamphog"],
+        pullRequestCollapseBotComments: false,
+        pullRequestKeepBotApprovals: false,
+        pullRequestKeepBotChangeRequests: false,
+        pullRequestKeepBotReviewComments: true,
+        pullRequestExtraBots: ["release-tool"],
+        pullRequestHumanAccounts: ["octocat-bot"],
+        pullRequestBotNameHeuristics: false,
       }),
     ).toEqual([
       "Browser viewport",
@@ -258,6 +265,13 @@ describe("getChangedBrowserSettingLabels", () => {
       "Hide bots in pull request timelines",
       "Hide comments that say exactly",
       "Show only the latest from",
+      "Collapse bot comments",
+      "Keep bot approvals",
+      "Keep bot change requests",
+      "Keep bot reviews that only commented",
+      "Extra bot accounts",
+      "Always treat as human",
+      "Bot name heuristics",
     ]);
   });
 });

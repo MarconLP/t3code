@@ -154,9 +154,12 @@ or merge. You can edit review titles and descriptions and your own comments wher
 GitLab calls these merge requests.
 
 On web and desktop, the **Timeline** tab and the Summary **Comments** list hide bot comments by
-default but keep bot approvals, change requests, and threads a person replied to. Toggle **Bots
-hidden** or the Comments filter's **Bot comments** to show them, and adjust the rules in
-Settings → Integrations.
+default but keep bot approvals, change requests, and current threads a person replied to. An
+outdated or resolved thread a bot started goes with the bots. In the Comments list, hidden bot
+comments fold into one line per run that you can click to read. Toggle **Bots hidden** or the
+Comments filter's **Bot comments** to show them, and adjust the rules (which reviews to keep,
+summons to hide, extra bot or human accounts, name heuristics) under Settings → Integrations →
+Pull request comments.
 
 On mobile, **Pull requests** lists reviews across your connected environments. Open a review
 to read its description, activity, commits, and changed files. Line comments stay as drafts

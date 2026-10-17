@@ -151,6 +151,7 @@ import {
   buildPullRequestTimeline,
   buildResolveConflictsPrompt,
   filterPullRequestTimeline,
+  pullRequestNoiseRulesFromSettings,
   handoffPrompt,
   handoffReviewComments,
   latestPullRequestReviewOutcomes,
@@ -641,8 +642,7 @@ export function PullRequestDetailPanel({
   const [tab, setTab] = useState<DetailTab>("summary");
   const [timelineOrder, setTimelineOrder] = useState<"newest" | "oldest">("newest");
   const timelineHideBots = useClientSettings((settings) => settings.pullRequestTimelineHideBots);
-  const hiddenComments = useClientSettings((settings) => settings.pullRequestHiddenComments);
-  const latestOnlyBots = useClientSettings((settings) => settings.pullRequestLatestOnlyBots);
+  const noiseRules = useClientSettings(pullRequestNoiseRulesFromSettings);
   const updateClientSettings = useUpdateClientSettings();
   const [codeCommitScope, setCodeCommitScope] = useState<{
     readonly pullRequestKey: string;
@@ -1534,9 +1534,8 @@ export function PullRequestDetailPanel({
       : null;
   const timeline = detail
     ? filterPullRequestTimeline(buildPullRequestTimeline(detail), detail.reviewThreads, {
+        ...noiseRules,
         hideBots: timelineHideBots,
-        hiddenComments: hiddenComments,
-        latestOnlyBots: latestOnlyBots,
       })
     : null;
   const approvalCount =

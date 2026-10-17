@@ -777,6 +777,13 @@ export function useSettingsRestore(onRestored?: () => void) {
       pullRequestTimelineHideBots: DEFAULT_UNIFIED_SETTINGS.pullRequestTimelineHideBots,
       pullRequestHiddenComments: DEFAULT_UNIFIED_SETTINGS.pullRequestHiddenComments,
       pullRequestLatestOnlyBots: DEFAULT_UNIFIED_SETTINGS.pullRequestLatestOnlyBots,
+      pullRequestKeepBotApprovals: DEFAULT_UNIFIED_SETTINGS.pullRequestKeepBotApprovals,
+      pullRequestKeepBotChangeRequests: DEFAULT_UNIFIED_SETTINGS.pullRequestKeepBotChangeRequests,
+      pullRequestKeepBotReviewComments: DEFAULT_UNIFIED_SETTINGS.pullRequestKeepBotReviewComments,
+      pullRequestCollapseBotComments: DEFAULT_UNIFIED_SETTINGS.pullRequestCollapseBotComments,
+      pullRequestExtraBots: DEFAULT_UNIFIED_SETTINGS.pullRequestExtraBots,
+      pullRequestHumanAccounts: DEFAULT_UNIFIED_SETTINGS.pullRequestHumanAccounts,
+      pullRequestBotNameHeuristics: DEFAULT_UNIFIED_SETTINGS.pullRequestBotNameHeuristics,
       enableAgentBrowserAccess: DEFAULT_UNIFIED_SETTINGS.enableAgentBrowserAccess,
     });
     onRestored?.();

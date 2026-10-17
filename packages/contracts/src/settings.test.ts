@@ -786,11 +786,33 @@ describe("ClientSettings pull request timeline", () => {
       pullRequestTimelineHideBots: true,
       pullRequestHiddenComments: ["@codex review"],
       pullRequestLatestOnlyBots: [],
+      pullRequestKeepBotApprovals: true,
+      pullRequestKeepBotChangeRequests: true,
+      pullRequestKeepBotReviewComments: false,
+      pullRequestCollapseBotComments: true,
+      pullRequestExtraBots: [],
+      pullRequestHumanAccounts: [],
+      pullRequestBotNameHeuristics: true,
     });
     expect(
       decodeClientSettingsPatch({ pullRequestLatestOnlyBots: ["stamphog"] })
         .pullRequestLatestOnlyBots,
     ).toEqual(["stamphog"]);
+    expect(
+      decodeClientSettingsPatch({
+        pullRequestKeepBotReviewComments: true,
+        pullRequestCollapseBotComments: false,
+        pullRequestExtraBots: ["release-tool"],
+        pullRequestHumanAccounts: ["octo-bot"],
+        pullRequestBotNameHeuristics: false,
+      }),
+    ).toEqual({
+      pullRequestKeepBotReviewComments: true,
+      pullRequestCollapseBotComments: false,
+      pullRequestExtraBots: ["release-tool"],
+      pullRequestHumanAccounts: ["octo-bot"],
+      pullRequestBotNameHeuristics: false,
+    });
   });
 });
 

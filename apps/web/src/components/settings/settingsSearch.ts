@@ -770,6 +770,48 @@ export const SETTINGS_SEARCH_ITEMS = [
     searchTerms: ["pr comments timeline bot newest latest stamphog review repeated comments"],
   },
   {
+    id: "pull-request-collapse-bot-comments",
+    title: "Collapse bot comments",
+    to: "/settings/integrations",
+    searchTerms: ["pr comments bot fold strip one line quiet"],
+  },
+  {
+    id: "pull-request-keep-bot-approvals",
+    title: "Keep bot approvals",
+    to: "/settings/integrations",
+    searchTerms: ["pr comments timeline bot review approved verdict"],
+  },
+  {
+    id: "pull-request-keep-bot-change-requests",
+    title: "Keep bot change requests",
+    to: "/settings/integrations",
+    searchTerms: ["pr comments timeline bot review changes requested verdict"],
+  },
+  {
+    id: "pull-request-keep-bot-review-comments",
+    title: "Keep bot reviews that only commented",
+    to: "/settings/integrations",
+    searchTerms: ["pr comments timeline bot review commented dismissed"],
+  },
+  {
+    id: "pull-request-extra-bots",
+    title: "Extra bot accounts",
+    to: "/settings/integrations",
+    searchTerms: ["pr comments timeline bot login token automated account"],
+  },
+  {
+    id: "pull-request-human-accounts",
+    title: "Always treat as human",
+    to: "/settings/integrations",
+    searchTerms: ["pr comments timeline bot person login override not a bot"],
+  },
+  {
+    id: "pull-request-bot-name-heuristics",
+    title: "Bot name heuristics",
+    to: "/settings/integrations",
+    searchTerms: ["pr comments timeline bot login suffix -bot -ci -app"],
+  },
+  {
     id: "browser-auto-show-floating-preview",
     title: "Auto-show floating preview",
     to: "/settings/integrations",
