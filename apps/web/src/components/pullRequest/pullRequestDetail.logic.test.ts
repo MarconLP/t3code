@@ -812,7 +812,7 @@ describe("pull request timeline bot filter", () => {
     expect(result.ids).not.toContain("commented");
   });
 
-  it("keeps a bot's inline finding once a person replied in its thread", () => {
+  it("hides a bot's inline finding with the reply that answered it", () => {
     const threads = [
       botThread([
         { id: "finding", login: "chatgpt-codex-connector[bot]" },
@@ -833,7 +833,8 @@ describe("pull request timeline bot filter", () => {
       ],
       threads,
     );
-    expect(result.ids).toEqual(expect.arrayContaining(["finding", "reply"]));
+    expect(result.ids).not.toContain("finding");
+    expect(result.ids).not.toContain("reply");
     expect(result.ids).not.toContain("lone-finding");
     expect(result.ids).not.toContain("bot-follow-up");
   });
@@ -937,7 +938,7 @@ describe("pull request timeline bot filter", () => {
       ).toEqual(["commented"]);
     });
 
-    it("keeps a bot finding in a thread a person replied to", () => {
+    it("hides a bot finding together with the reply in its thread", () => {
       const inline = { kind: "review-comment" as const, path: "apps/web/src/page.tsx" };
       expect(
         hiddenIds(
@@ -954,7 +955,7 @@ describe("pull request timeline bot filter", () => {
             botThread([{ id: "lone-finding", login: "chatgpt-codex-connector[bot]" }]),
           ],
         ),
-      ).toEqual(["lone-finding"]);
+      ).toEqual(["finding", "lone-finding", "reply"]);
     });
 
     it("hides a person's @codex review summons", () => {
@@ -1069,8 +1070,8 @@ describe("pull request bot noise rules, as quiet-prs", () => {
       expect(hidden(comments, [thread(ids, { isResolved: true })])).toEqual(["finding", "reply"]);
     });
 
-    it("keeps a current thread whole", () => {
-      expect(hidden(comments, [thread(ids)])).toEqual([]);
+    it("folds a current, unresolved thread too", () => {
+      expect(hidden(comments, [thread(ids)])).toEqual(["finding", "reply"]);
     });
 
     it("keeps an outdated thread a person started, bot replies included", () => {

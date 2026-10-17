@@ -712,9 +712,8 @@ function normalizedCommentText(text: string): string {
  *
  * - A comment whose whole text is a hidden phrase goes, whoever wrote it, but only on its own: in
  *   a thread with replies it is part of a conversation.
- * - A review thread is a person's while it is current and a person took part. Once it is outdated
- *   or resolved it is collapsed on the host and reads as whoever started it, so a bot's finding
- *   folds away with the reply that answered it.
+ * - A review thread reads as whoever started it, replies included, so a bot's finding folds away
+ *   with the reply that answered it and a person's thread stays even when a bot chimes in.
  * - A latest-only bot keeps its newest item in full and loses the rest, verdicts included.
  * - A bot's approval, change request or comment-only review stays while its keep setting is on.
  */
@@ -739,20 +738,13 @@ export function pullRequestNoiseDispositions(
     item: PullRequestActivityItem,
   ): { readonly bot: boolean; readonly author: PullRequestActor | null } => {
     const thread = threadByCommentId.get(item.id);
-    const root = thread?.comments[0];
+    const root = thread?.comments.toSorted((left, right) =>
+      left.createdAt.localeCompare(right.createdAt),
+    )[0];
     if (thread === undefined || root === undefined) {
       return { bot: isBot(item.actor), author: item.actor };
     }
-    if (thread.isOutdated || thread.isResolved)
-      return { bot: isBot(root.author), author: root.author };
-    const person = thread.comments.find((comment) => !isBot(comment.author));
-    if (person !== undefined) return { bot: false, author: person.author };
-    // Replies not loaded yet may hold a person's, so the thread stays rather than vanishing
-    // from under it.
-    const unloaded =
-      (thread.commentCount ?? 0) > thread.comments.length ||
-      thread.nextCommentsCursor !== undefined;
-    return { bot: !unloaded, author: root.author };
+    return { bot: isBot(root.author), author: root.author };
   };
   const isLone = (item: PullRequestActivityItem): boolean => {
     const thread = threadByCommentId.get(item.id);
