@@ -32,6 +32,11 @@ import {
   canDeletePullRequestBranch,
   buildFixFindingsHandoff,
   groupPullRequestTimelineConversations,
+  groupPullRequestCommentThreads,
+  filterPullRequestConversationItems,
+  pagePullRequestConversationItems,
+  pullRequestConversationItemComments,
+  pullRequestConversationItems,
   handoffPrompt,
   handoffReviewComments,
   stripPullRequestHandoffReferences,
@@ -61,6 +66,7 @@ import {
   buildPullRequestTimeline,
   editPullRequestThreadComment,
   writePullRequestDetailSnapshot,
+  type PullRequestConversationItem,
 } from "./pullRequestDetail.logic";
 import type { ReviewCommentContext } from "~/reviewCommentContext";
 
@@ -943,6 +949,192 @@ describe("pull request timeline review threads", () => {
       without.find((event) => event.id === "c1"),
     );
     expect(without.find((event) => event.id === "c1")).not.toHaveProperty("thread");
+  });
+});
+
+describe("pull request conversation items", () => {
+  const bot = { login: "posthog[bot]", name: null, avatarUrl: null, isBot: true };
+  const human = { login: "marcon", name: null, avatarUrl: null };
+
+  function comment(
+    id: string,
+    createdAt: string,
+    author: PullRequestComment["author"] = human,
+    kind: PullRequestComment["kind"] = "review-comment",
+  ): PullRequestComment {
+    return {
+      id,
+      kind,
+      author,
+      body: `body of ${id}`,
+      createdAt,
+      url: null,
+      path: kind === "review-comment" ? "src/a.ts" : null,
+      reviewState: null,
+    };
+  }
+
+  function reviewThread(
+    id: string,
+    comments: ReadonlyArray<PullRequestComment>,
+    overrides: Partial<PullRequestReviewThread> = {},
+  ): PullRequestReviewThread {
+    return {
+      id,
+      path: "src/a.ts",
+      line: 7,
+      side: "right",
+      isResolved: false,
+      isOutdated: false,
+      comments: comments.map(({ id, author, body, createdAt, url }) => ({
+        id,
+        author,
+        body,
+        createdAt,
+        url,
+      })),
+      ...overrides,
+    };
+  }
+
+  const finding = comment("finding", "2026-07-02T00:00:00Z", bot);
+  const reply = comment("reply", "2026-07-06T00:00:00Z");
+  const early = comment("early", "2026-07-01T00:00:00Z", human, "issue-comment");
+  const middle = comment("middle", "2026-07-04T00:00:00Z", human, "issue-comment");
+  const late = comment("late", "2026-07-08T00:00:00Z", human, "issue-comment");
+
+  const ids = (items: ReadonlyArray<PullRequestConversationItem>) => items.map((item) => item.id);
+
+  it("groups a thread's comments into its root and its replies, oldest first", () => {
+    const thread = reviewThread("thread-1", [reply, finding]);
+    const { threads, loose } = groupPullRequestCommentThreads(
+      [early, finding, middle, reply, late],
+      [thread],
+    );
+
+    expect(loose.map((entry) => entry.id)).toEqual(["early", "middle", "late"]);
+    expect(threads).toHaveLength(1);
+    expect(threads[0]?.thread).toBe(thread);
+    // The conversation's copy wins, so the page edits and reacts to the same object.
+    expect(threads[0]?.root).toBe(finding);
+    expect(threads[0]?.replies).toEqual([reply]);
+  });
+
+  it("fills in a reply only the thread has, and skips a thread the conversation never mentions", () => {
+    const { threads } = groupPullRequestCommentThreads(
+      [finding],
+      [
+        reviewThread("thread-1", [finding, reply]),
+        reviewThread("thread-2", [comment("elsewhere", "2026-07-03T00:00:00Z")]),
+      ],
+    );
+
+    expect(threads.map((group) => group.thread.id)).toEqual(["thread-1"]);
+    expect(threads[0]?.replies).toEqual([
+      expect.objectContaining({ id: "reply", kind: "review-comment", path: "src/a.ts" }),
+    ]);
+  });
+
+  it("keeps a one-comment thread as a thread with no replies, and threadless hosts flat", () => {
+    expect(ids(pullRequestConversationItems([finding], [reviewThread("solo", [finding])]))).toEqual(
+      ["solo"],
+    );
+    expect(
+      pullRequestConversationItems([early, finding, middle], []).map((item) => item.kind),
+    ).toEqual(["comment", "comment", "comment"]);
+  });
+
+  it("places a thread at its root's time under both orders", () => {
+    const items = pullRequestConversationItems(
+      [early, finding, middle, reply, late],
+      [reviewThread("thread-1", [finding, reply])],
+    );
+
+    expect(ids(items)).toEqual(["early", "thread-1", "middle", "late"]);
+    expect(items[1]?.createdAt).toBe(finding.createdAt);
+    expect(ids(orderPullRequestComments(items, "oldest"))).toEqual([
+      "early",
+      "thread-1",
+      "middle",
+      "late",
+    ]);
+    expect(ids(orderPullRequestComments(items, "newest"))).toEqual([
+      "late",
+      "middle",
+      "thread-1",
+      "early",
+    ]);
+  });
+
+  it("keeps a thread whole when any of its comments passes the filter", () => {
+    const items = pullRequestConversationItems(
+      [finding, reply, comment("bot-report", "2026-07-07T00:00:00Z", bot, "issue-comment")],
+      [reviewThread("thread-1", [finding, reply])],
+    );
+
+    const kept = filterPullRequestConversationItems(items, { bots: false, resolved: false });
+    expect(ids(kept)).toEqual(["thread-1"]);
+    expect(pullRequestConversationItemComments(kept[0]!).map((entry) => entry.id)).toEqual([
+      "finding",
+      "reply",
+    ]);
+  });
+
+  it("hides a thread when none of its comments passes the filter", () => {
+    const followUp = comment("bot-follow-up", "2026-07-03T00:00:00Z", bot);
+    const items = pullRequestConversationItems(
+      [finding, followUp, middle],
+      [reviewThread("thread-1", [finding, followUp])],
+    );
+
+    expect(
+      ids(filterPullRequestConversationItems(items, { bots: false, resolved: false })),
+    ).toEqual(["middle"]);
+    expect(ids(filterPullRequestConversationItems(items, { bots: true, resolved: false }))).toEqual(
+      ["thread-1", "middle"],
+    );
+  });
+
+  it("hides a resolved thread as a whole, even with a human reply", () => {
+    const items = pullRequestConversationItems(
+      [finding, middle, reply],
+      [reviewThread("thread-1", [finding, reply], { isResolved: true })],
+    );
+
+    expect(ids(filterPullRequestConversationItems(items, { bots: true, resolved: false }))).toEqual(
+      ["middle"],
+    );
+    expect(ids(filterPullRequestConversationItems(items, { bots: false, resolved: true }))).toEqual(
+      ["thread-1", "middle"],
+    );
+  });
+
+  it("still hides a dismissed review that no thread claims", () => {
+    const dismissed = {
+      ...comment("dismissed", "2026-07-03T00:00:00Z", human, "review"),
+      reviewState: "DISMISSED",
+    };
+    const items = pullRequestConversationItems([dismissed, middle], []);
+
+    expect(ids(filterPullRequestConversationItems(items, { bots: true, resolved: false }))).toEqual(
+      ["middle"],
+    );
+  });
+
+  it("pages a thread as one item and never splits its replies", () => {
+    const replies = Array.from({ length: 5 }, (_, index) =>
+      comment(`reply-${index}`, `2026-07-1${index}T00:00:00Z`),
+    );
+    const items = pullRequestConversationItems(
+      [early, finding, ...replies, late],
+      [reviewThread("thread-1", [finding, ...replies])],
+    );
+
+    const { shown, hidden } = pagePullRequestConversationItems(items, 2);
+    expect(ids(shown)).toEqual(["thread-1", "late"]);
+    expect(hidden).toBe(1);
+    expect(shown[0]?.kind === "thread" ? shown[0].replies : []).toHaveLength(5);
+    expect(pagePullRequestConversationItems(items, 10)).toEqual({ shown: items, hidden: 0 });
   });
 });
 
