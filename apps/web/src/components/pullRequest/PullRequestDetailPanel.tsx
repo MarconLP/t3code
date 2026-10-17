@@ -2763,7 +2763,8 @@ export function PullRequestDetailPanel({
                 <Button
                   size="xs"
                   variant="ghost-muted"
-                  aria-label={timelineHideBots ? "Show bot activity" : "Hide bot activity"}
+                  // A toggle's name stays fixed; aria-pressed says whether hiding is on.
+                  aria-label="Hide bot activity"
                   aria-pressed={timelineHideBots}
                   onClick={() =>
                     updateClientSettings({ pullRequestTimelineHideBots: !timelineHideBots })
