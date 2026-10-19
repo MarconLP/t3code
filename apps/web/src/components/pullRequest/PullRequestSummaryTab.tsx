@@ -907,8 +907,8 @@ export function PullRequestSummaryTab({
           <>
             {detail.commentsTruncated ? (
               <p className="mb-2 rounded-md border border-warning/30 bg-warning-surface px-2 py-1.5 text-xs">
-                This conversation is longer than this page reads in one go. The most recent{" "}
-                {detail.comments.length} are here; open it on the host to read the rest.
+                This conversation is only partially loaded. {commentCount} comment
+                {commentCount === 1 ? " is" : "s are"} loaded; open it on the host to read the rest.
               </p>
             ) : null}
             {items.length === 0 ? (
