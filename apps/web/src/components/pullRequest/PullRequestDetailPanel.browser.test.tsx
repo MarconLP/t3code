@@ -67,7 +67,12 @@ vi.mock(import("~/state/pullRequests"), async (original) => {
 vi.mock(import("~/state/query"), async (original) => ({
   ...(await original()),
   useEnvironmentQuery: ((query: unknown) => ({
-    data: query === "detail" ? detail : null,
+    data:
+      query === "detail"
+        ? (activityDetail ?? detail)
+        : query === "activity"
+          ? activityDetail
+          : null,
     dataUpdatedAt: 0,
     failure: null,
     isPending: false,
@@ -86,33 +91,41 @@ vi.mock(import("~/state/usePullRequestStack"), async (original) => ({
     refresh,
   })) as never,
 }));
-// The real tabs load diffs, markdown and checks from the environment; these stand-ins
-// expose the actions they hand back to the panel and a tall scroller.
-vi.mock(import("./PullRequestSummaryTab"), async (original) => ({
-  ...(await original()),
-  PullRequestSummaryTab: (({
-    onFixFinding,
-    scrollerRef,
-  }: ComponentProps<typeof import("./PullRequestSummaryTab").PullRequestSummaryTab>) => (
-    <div ref={scrollerRef} data-testid="summary-scroller" className="h-full overflow-y-auto">
-      <button
-        type="button"
-        onClick={() =>
-          onFixFinding?.({
-            kind: "check",
-            check: { name: "Unit tests", status: "failure", description: "Test failed", url: null },
-          })
-        }
-      >
-        Fix check
-      </button>
-      <div data-testid="nested-scroller" className="h-40 overflow-y-auto">
-        <div className="h-[2000px]" />
-      </div>
-      <div className="h-[3000px]" />
-    </div>
-  )) as never,
-}));
+// Action and scroll tests use stand-ins; activity tests render the real Summary.
+vi.mock(import("./PullRequestSummaryTab"), async (original) => {
+  const actual = await original();
+  return {
+    ...actual,
+    PullRequestSummaryTab: ((props: ComponentProps<typeof actual.PullRequestSummaryTab>) => {
+      if (activityDetail !== null) return <actual.PullRequestSummaryTab {...props} />;
+      const { onFixFinding, scrollerRef } = props;
+      return (
+        <div ref={scrollerRef} data-testid="summary-scroller" className="h-full overflow-y-auto">
+          <button
+            type="button"
+            onClick={() =>
+              onFixFinding?.({
+                kind: "check",
+                check: {
+                  name: "Unit tests",
+                  status: "failure",
+                  description: "Test failed",
+                  url: null,
+                },
+              })
+            }
+          >
+            Fix check
+          </button>
+          <div data-testid="nested-scroller" className="h-40 overflow-y-auto">
+            <div className="h-[2000px]" />
+          </div>
+          <div className="h-[3000px]" />
+        </div>
+      );
+    }) as never,
+  };
+});
 vi.mock(import("./PullRequestCodeTab"), async (original) => ({
   ...(await original()),
   default: (({
@@ -201,6 +214,8 @@ const detail: PullRequestDetailView = {
   },
 };
 
+let activityDetail: PullRequestDetailView | null = null;
+
 const threadRef: ScopedThreadRef = {
   environmentId: EnvironmentId.make("env-1"),
   threadId: ThreadId.make("thread-1"),
@@ -239,6 +254,7 @@ function render(props: Partial<ComponentProps<typeof PullRequestDetailPanel>> = 
 }
 
 beforeEach(() => {
+  activityDetail = null;
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
   useComposerDraftStore.setState({ draftsByThreadKey: {} });
   newThread
@@ -385,4 +401,55 @@ it("folds the title only for the active tab's own scroller", async () => {
   await vi.waitFor(() => expect(titleFold()).toBe(false));
   await tab("Code").click();
   await vi.waitFor(() => expect(titleFold()).toBe(true));
+});
+
+it("counts discussion comments in Summary and Timeline when the notes read is incomplete", async () => {
+  activityDetail = {
+    ...detail,
+    provider: SourceControlProviderKind.make("gitlab"),
+    url: "https://gitlab.com/owner/repo/-/merge_requests/1",
+    comments: [],
+    commentCount: 0,
+    commentsTruncated: true,
+    reviewThreads: [
+      {
+        id: "discussion-1",
+        path: "src/index.ts",
+        line: 1,
+        side: "right",
+        isResolved: false,
+        isOutdated: false,
+        comments: [
+          {
+            id: "note-1",
+            author: detail.author,
+            body: "Discussion finding",
+            createdAt: "2026-09-01T00:01:00Z",
+            url: "https://gitlab.com/owner/repo/-/merge_requests/1#note_1",
+          },
+          {
+            id: "note-2",
+            author: detail.author,
+            body: "Discussion reply",
+            createdAt: "2026-09-01T00:02:00Z",
+            url: "https://gitlab.com/owner/repo/-/merge_requests/1#note_2",
+          },
+        ],
+      },
+    ],
+  };
+  await render({ reference: activityDetail });
+  await expect.element(page.getByText("Discussion finding", { exact: true })).toBeVisible();
+  await expect.element(page.getByText("Discussion reply", { exact: true })).toBeVisible();
+  expect
+    .soft(page.getByRole("button", { name: /^Comments \(/ }).element().textContent)
+    .toBe("Comments (2)");
+  const warning = page.getByText(/open it on the host to read the rest/).element().textContent;
+  expect.soft(warning).toMatch(/\b2\b/);
+  expect.soft(warning).not.toMatch(/most recent/i);
+
+  await tab("Timeline").click();
+  await expect.element(page.getByText("Discussion finding", { exact: true }).last()).toBeVisible();
+  await expect.element(page.getByText("Discussion reply", { exact: true }).last()).toBeVisible();
+  expect.soft(page.getByLabelText(/^[0-9]+ comments?$/).element().textContent).toBe("2");
 });
