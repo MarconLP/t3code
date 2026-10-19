@@ -39,6 +39,7 @@ import {
 } from "./pullRequestDetail.logic";
 import { canEditPullRequestComment } from "./pullRequestEditing.logic";
 import { PullRequestMarkdown } from "./PullRequestMarkdown";
+import { PullRequestMoreReplies } from "./PullRequestMoreReplies";
 import { PullRequestMarkdownEditor } from "./PullRequestMarkdownEditor";
 import { PullRequestReactionBar } from "./PullRequestReactions";
 import {
@@ -384,11 +385,9 @@ function ReviewThreadEvent({
   onOpen: (url: string) => void;
   reactions: ReactionSurface;
 }) {
-  // Like the Code tab's thread card: a settled conversation starts folded to its header.
-  const [expanded, setExpanded] = useState(!thread.isResolved);
-  const commentCount = 1 + thread.replies.length + thread.moreReplies;
-  const cardKey = (id: string) =>
-    `${reactions.reference.projectId}#${reactions.reference.number}:${id}`;
+  const dismissed = pullRequestReviewOutcome(event.reviewState) === "dismissed";
+  const [expanded, setExpanded] = useState(!thread.isResolved && !dismissed);
+  const replyCount = thread.replies.length + thread.moreReplies;
 
   return (
     <div className="group relative mb-5 pl-12 [contain-intrinsic-block-size:48px] [content-visibility:auto]">
@@ -414,11 +413,17 @@ function ReviewThreadEvent({
             Resolved
           </span>
         ) : null}
+        {dismissed ? <span className="shrink-0 font-medium">Review dismissed</span> : null}
         {thread.isOutdated ? <span className="shrink-0 font-medium">Outdated</span> : null}
         {expanded ? null : (
           <span className="shrink-0">
-            · {event.actor?.login ?? "ghost"} · {commentCount.toLocaleString()}{" "}
-            {commentCount === 1 ? "comment" : "comments"}
+            · {event.actor?.login ?? "ghost"}
+            {replyCount > 0 ? (
+              <>
+                {" "}
+                · {replyCount.toLocaleString()} {replyCount === 1 ? "reply" : "replies"}
+              </>
+            ) : null}
           </span>
         )}
         <ChevronDownIcon
@@ -429,7 +434,6 @@ function ReviewThreadEvent({
       {expanded ? (
         <>
           <ConversationCard
-            key={cardKey(event.id)}
             event={event}
             editable={editable.get(event.id) ?? null}
             cwd={cwd}
@@ -437,11 +441,11 @@ function ReviewThreadEvent({
             reactions={reactions}
             showPath={false}
           />
-          {thread.replies.length > 0 || thread.hasMoreReplies ? (
+          {thread.replies.length > 0 ? (
             <div className="ml-2 space-y-1 border-l border-border/60 pl-3">
               {thread.replies.map((reply) => (
                 <ConversationCard
-                  key={cardKey(reply.id)}
+                  key={reply.id}
                   event={reply}
                   editable={editable.get(reply.id) ?? null}
                   cwd={cwd}
@@ -450,30 +454,14 @@ function ReviewThreadEvent({
                   showPath={false}
                 />
               ))}
-              {thread.hasMoreReplies ? (
-                <div className="flex items-center gap-1 px-2 py-1 text-2xs text-muted-foreground">
-                  <span>
-                    {thread.moreReplies > 0
-                      ? `${thread.moreReplies.toLocaleString()} more ${thread.moreReplies === 1 ? "reply" : "replies"}`
-                      : "More replies"}
-                  </span>
-                  {thread.url !== null ? (
-                    <Button
-                      size="xs"
-                      variant="ghost-muted"
-                      onClick={() => {
-                        if (thread.url !== null) onOpen(thread.url);
-                      }}
-                    >
-                      View on host
-                      <ExternalLinkIcon className="size-3" />
-                    </Button>
-                  ) : null}
-                </div>
-              ) : null}
             </div>
           ) : null}
         </>
+      ) : null}
+      {thread.hasMoreReplies ? (
+        <div className="px-2">
+          <PullRequestMoreReplies {...thread} />
+        </div>
       ) : null}
     </div>
   );
@@ -668,7 +656,9 @@ export function PullRequestTimelineTab({
     onRefresh,
   };
   const editable = new Map(
-    detail.comments
+    events
+      .flatMap((event) => [event, ...(event.thread?.replies ?? [])])
+      .flatMap((event) => (event.comment ? [event.comment] : []))
       .filter((comment) => canEditPullRequestComment(detail, comment))
       .map((comment) => [comment.id, comment] as const),
   );

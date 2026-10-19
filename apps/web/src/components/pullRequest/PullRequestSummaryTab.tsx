@@ -72,6 +72,7 @@ import {
 } from "./pullRequestEditing.logic";
 import { PullRequestMarkdown } from "./PullRequestMarkdown";
 import { PullRequestCommentBody } from "./PullRequestCommentBody";
+import { PullRequestMoreReplies } from "./PullRequestMoreReplies";
 import { PullRequestMarkdownEditor } from "./PullRequestMarkdownEditor";
 import { PullRequestReactionBar } from "./PullRequestReactions";
 import { PullRequestConversationGhost } from "./PullRequestGhosts";
@@ -211,6 +212,7 @@ function CollapsedComment({
   thread,
   replyCount = 0,
   replies = null,
+  moreReplies = null,
 }: {
   comment: PullRequestComment;
   editing: CommentEditing;
@@ -219,9 +221,9 @@ function CollapsedComment({
   reactionBar: ReactNode;
   detail: PullRequestDetailView;
   thread: PullRequestReviewThread | undefined;
-  /** Replies to a folded thread's root, shown with it when the row opens. */
   replyCount?: number;
   replies?: ReactNode;
+  moreReplies?: ReactNode;
 }) {
   const [open, setOpen] = useState(false);
   const statusTriggerRef = useRef<HTMLButtonElement>(null);
@@ -275,6 +277,7 @@ function CollapsedComment({
             </div>
           ) : null}
         </CollapsiblePanel>
+        {moreReplies ? <div className="px-3 pb-3">{moreReplies}</div> : null}
       </article>
     </Collapsible>
   );
@@ -402,42 +405,40 @@ export function PullRequestSummaryTab({
   onRefreshChecks?: () => void;
 }) {
   const [shown, setShown] = useState({ url: detail.url, count: COMMENT_PAGE });
-  const shownComments = shown.url === detail.url ? shown.count : COMMENT_PAGE;
+  const shownConversations = shown.url === detail.url ? shown.count : COMMENT_PAGE;
   const [commentFilter, setCommentFilter] = useLocalStorage(
     COMMENT_FILTER_STORAGE_KEY,
     DEFAULT_COMMENT_FILTER,
     CommentFilterSchema,
   );
-  // A review thread is one item: its finding, then the replies to it. Filtering and paging act
-  // on whole items, so a reply never shows without the finding it answers, or the other way.
-  const filteredItems = filterPullRequestConversationItems(
-    pullRequestConversationItems(detail.comments, detail.reviewThreads),
-    commentFilter,
+  const items = pullRequestConversationItems(detail.comments, detail.reviewThreads);
+  const filteredItems = filterPullRequestConversationItems(items, commentFilter);
+  const commentCount = items.reduce(
+    (count, item) => count + pullRequestConversationItemComments(item).length,
+    0,
   );
-  const shownCommentIds = new Set(
-    filteredItems.flatMap((item) =>
-      pullRequestConversationItemComments(item).map((comment) => comment.id),
-    ),
-  );
-  const filteredOutCount = detail.comments.filter(
-    (comment) => !shownCommentIds.has(comment.id),
-  ).length;
-  const { shown: recentItems, hidden: hiddenCommentCount } = pagePullRequestConversationItems(
+  const filteredOutCount =
+    commentCount -
+    filteredItems.reduce(
+      (count, item) => count + pullRequestConversationItemComments(item).length,
+      0,
+    );
+  const { shown: recentItems, hidden: hiddenConversationCount } = pagePullRequestConversationItems(
     filteredItems,
-    shownComments,
+    shownConversations,
   );
   const [commentOrder, setCommentOrder] = useState<"newest" | "oldest">("newest");
   const visibleItems = orderPullRequestComments(recentItems, commentOrder);
   const showOldestCommentsButton =
-    hiddenCommentCount > 0 ? (
+    hiddenConversationCount > 0 ? (
       <Button
         size="sm"
         variant="outline"
         className="w-full"
-        onClick={() => setShown({ url: detail.url, count: shownComments + COMMENT_PAGE })}
+        onClick={() => setShown({ url: detail.url, count: shownConversations + COMMENT_PAGE })}
       >
-        Show {Math.min(hiddenCommentCount, COMMENT_PAGE)} older comment
-        {hiddenCommentCount === 1 ? "" : "s"} ({hiddenCommentCount} hidden)
+        Show {Math.min(hiddenConversationCount, COMMENT_PAGE)} older conversation
+        {hiddenConversationCount === 1 ? "" : "s"} ({hiddenConversationCount} hidden)
       </Button>
     ) : null;
   // Read from the whole conversation, not the window shown below it: a verdict older than the
@@ -553,15 +554,6 @@ export function PullRequestSummaryTab({
     />
   );
 
-  const renderReplies = (replies: ReadonlyArray<PullRequestComment>) =>
-    replies.length === 0 ? null : (
-      <div className="ml-4 space-y-2 border-l-2 border-border/60 pl-3">
-        {replies.map((reply) => renderCommentCard(reply, undefined, { reply: true }))}
-      </div>
-    );
-
-  // `thread` is the review thread the comment opens, when it is a thread's root; a reply leaves
-  // the location and the finding to that root.
   const renderCommentCard = (
     comment: PullRequestComment,
     thread: PullRequestReviewThread | undefined,
@@ -631,8 +623,14 @@ export function PullRequestSummaryTab({
   const renderItem = (item: PullRequestConversationItem) => {
     const comment = item.kind === "comment" ? item.comment : item.root;
     const thread = item.kind === "thread" ? item.thread : undefined;
-    const replies = item.kind === "thread" ? item.replies : [];
-    // A resolved thread folds as one unit: one row for the finding, its replies inside.
+    const replies =
+      item.kind === "thread" && item.replies.length > 0 ? (
+        <div className="ml-4 space-y-2 border-l-2 border-border/60 pl-3">
+          {item.replies.map((reply) => renderCommentCard(reply, undefined, { reply: true }))}
+        </div>
+      ) : null;
+    const moreReplies =
+      item.kind === "thread" && item.hasMoreReplies ? <PullRequestMoreReplies {...item} /> : null;
     if (isPullRequestCommentFinished(comment, thread)) {
       return (
         <CollapsedComment
@@ -643,8 +641,9 @@ export function PullRequestSummaryTab({
           thread={thread}
           label={thread?.isResolved ? "Resolved" : "Review dismissed"}
           body={visibleBody(comment.body)}
-          replyCount={replies.length}
-          replies={renderReplies(replies)}
+          replyCount={item.kind === "thread" ? item.replies.length + item.moreReplies : 0}
+          replies={replies}
+          moreReplies={moreReplies}
           reactionBar={reactionBarFor(comment)}
         />
       );
@@ -653,7 +652,8 @@ export function PullRequestSummaryTab({
     return (
       <div key={`${detail.url}:thread:${item.id}`} className="space-y-2">
         {renderCommentCard(comment, thread)}
-        {renderReplies(replies)}
+        {replies}
+        {moreReplies}
       </div>
     );
   };
@@ -911,7 +911,7 @@ export function PullRequestSummaryTab({
                 {detail.comments.length} are here; open it on the host to read the rest.
               </p>
             ) : null}
-            {detail.comments.length === 0 ? (
+            {items.length === 0 ? (
               <p className="py-2 text-xs text-muted-foreground">No comments yet.</p>
             ) : filteredItems.length === 0 ? (
               <p className="py-2 text-xs text-muted-foreground">
@@ -924,14 +924,14 @@ export function PullRequestSummaryTab({
                 {commentOrder === "oldest" ? showOldestCommentsButton : null}
                 {visibleItems.map(renderItem)}
                 {commentOrder === "newest" ? showOldestCommentsButton : null}
-                {shownComments > COMMENT_PAGE ? (
+                {shownConversations > COMMENT_PAGE ? (
                   <Button
                     size="sm"
                     variant="ghost"
                     className="w-full"
                     onClick={() => setShown({ url: detail.url, count: COMMENT_PAGE })}
                   >
-                    Show only {COMMENT_PAGE} recent comments
+                    Show only {COMMENT_PAGE} recent conversations
                   </Button>
                 ) : null}
               </div>
