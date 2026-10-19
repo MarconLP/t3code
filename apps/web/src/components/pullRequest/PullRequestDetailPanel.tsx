@@ -66,9 +66,9 @@ import {
 import { type DraftId, useComposerDraftStore } from "~/composerDraftStore";
 import { useRightPanelStore } from "~/rightPanelStore";
 import {
+  updateClientSettings,
   useClientSettings,
   useEnvironmentSettings,
-  useUpdateClientSettings,
 } from "~/hooks/useSettings";
 import { useNewThreadHandler } from "~/hooks/useHandleNewThread";
 import { useCopyToClipboard } from "~/hooks/useCopyToClipboard";
@@ -102,7 +102,7 @@ import { PullRequestStackMenu } from "./PullRequestStackMenu";
 import { sourceControlClients } from "@t3tools/client-runtime/source-control-clients";
 import { PullRequestThreadLinks } from "./PullRequestThreadLinks";
 import { vcsEnvironment } from "~/state/vcs";
-import { formatRelativeTimeLabel } from "~/timestampFormat";
+import { RelativeTime } from "~/components/RelativeTime";
 import { useUiStateStore } from "~/uiStateStore";
 
 import { EnvironmentMachineIcon } from "../EnvironmentMachineIcon";
@@ -643,7 +643,6 @@ export function PullRequestDetailPanel({
   const [timelineOrder, setTimelineOrder] = useState<"newest" | "oldest">("newest");
   const timelineHideBots = useClientSettings((settings) => settings.pullRequestTimelineHideBots);
   const noiseRules = useClientSettings(pullRequestNoiseRulesFromSettings);
-  const updateClientSettings = useUpdateClientSettings();
   const [codeCommitScope, setCodeCommitScope] = useState<{
     readonly pullRequestKey: string;
     readonly oid: string | null;
@@ -2358,7 +2357,9 @@ export function PullRequestDetailPanel({
                       variant="avatar"
                       className="shrink-0"
                     />
-                    <span className="shrink-0">{formatRelativeTimeLabel(detail.updatedAt)}</span>
+                    <span className="shrink-0">
+                      <RelativeTime timestamp={detail.updatedAt} />
+                    </span>
                   </span>
                   <span aria-hidden className="h-3 w-px shrink-0 bg-border/70" />
                   <span className="flex min-w-0 flex-1 items-center gap-1.5 font-mono text-2xs text-muted-foreground/65">
@@ -2529,7 +2530,11 @@ export function PullRequestDetailPanel({
                 author={
                   <PullRequestActorLabel actor={detail.author} profileUrl={authorProfileUrl} />
                 }
-                updated={<span>updated {formatRelativeTimeLabel(detail.updatedAt)}</span>}
+                updated={
+                  <span>
+                    updated <RelativeTime timestamp={detail.updatedAt} />
+                  </span>
+                }
                 checkout={
                   checkoutCommand ? (
                     <PullRequestCopyableCode
