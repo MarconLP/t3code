@@ -690,7 +690,7 @@ export function PullRequestTimelineTab({
             if (event.thread !== undefined) {
               return (
                 <ReviewThreadEvent
-                  key={`${reactions.reference.projectId}#${reactions.reference.number}:thread:${event.id}`}
+                  key={`${reactions.reference.projectId}#${reactions.reference.number}:thread:${event.id}:${event.thread.isResolved}:${pullRequestReviewOutcome(event.reviewState) === "dismissed"}`}
                   event={event}
                   thread={event.thread}
                   editable={editable}
